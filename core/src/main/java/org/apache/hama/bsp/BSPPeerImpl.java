@@ -59,10 +59,7 @@ public final class BSPPeerImpl<K1, V1, K2, V2, M extends Writable> implements
   private static final Log LOG = LogFactory.getLog(BSPPeerImpl.class);
 
   public static enum PeerCounter {
-    COMPRESSED_MESSAGES, SUPERSTEP_SUM, TASK_INPUT_RECORDS,
-    TASK_OUTPUT_RECORDS, IO_BYTES_READ, MESSAGE_BYTES_TRANSFERED,
-    MESSAGE_BYTES_RECEIVED, TOTAL_MESSAGES_SENT, TOTAL_MESSAGES_RECEIVED,
-    COMPRESSED_BYTES_SENT, COMPRESSED_BYTES_RECEIVED, TIME_IN_SYNC_MS
+    COMPRESSED_MESSAGES, SUPERSTEP_SUM, TASK_INPUT_RECORDS, TASK_OUTPUT_RECORDS, IO_BYTES_READ, MESSAGE_BYTES_TRANSFERED, MESSAGE_BYTES_RECEIVED, TOTAL_MESSAGES_SENT, TOTAL_MESSAGES_RECEIVED, COMPRESSED_BYTES_SENT, COMPRESSED_BYTES_RECEIVED, TIME_IN_SYNC_MS
   }
 
   private final Configuration conf;
@@ -377,13 +374,41 @@ public final class BSPPeerImpl<K1, V1, K2, V2, M extends Writable> implements
       final InetSocketAddress addr = entry.getKey();
       final Iterable<M> messages = entry.getValue();
 
-      final BSPMessageBundle<M> bundle = combineMessages(messages);
+      BSPMessageBundle<M> bundle = combineMessages(messages);
       // remove this message during runtime to save a bit of memory
       it.remove();
-      try {
-        messenger.transfer(addr, bundle);
-      } catch (Exception e) {
-        LOG.error("Error while sending messages", e);
+      if (combiner != null) {
+        try {
+          messenger.transfer(addr, bundle);
+        } catch (Exception e) {
+          LOG.error("Error while sending messages", e);
+        }
+      } else {
+        long i = 0;
+        long bundleThreshold = conf.getLong("hama.messenger.bundle.threshold",
+            1048576);
+        for (M message : messages) {
+          i++;
+          if (i <= bundleThreshold) {
+            bundle.addMessage(message);
+          } else {
+            try {
+              messenger.transfer(addr, bundle);
+            } catch (Exception e) {
+              LOG.error("Error while sending messages", e);
+            }
+            bundle = new BSPMessageBundle<M>();
+            bundle.addMessage(message);
+            i = 1;
+          }
+        }
+        if (i > 0) {
+          try {
+            messenger.transfer(addr, bundle);
+          } catch (Exception e) {
+            LOG.error("Error while sending messages", e);
+          }
+        }
       }
     }
 
@@ -433,11 +458,9 @@ public final class BSPPeerImpl<K1, V1, K2, V2, M extends Writable> implements
     BSPMessageBundle<M> bundle = new BSPMessageBundle<M>();
     if (combiner != null) {
       bundle.addMessage(combiner.combine(messages));
-    } else {
-      for (M message : messages) {
-        bundle.addMessage(message);
-      }
-    }
+    } /*
+       * else { for (M message : messages) { bundle.addMessage(message); } }
+       */
     return bundle;
   }
 
