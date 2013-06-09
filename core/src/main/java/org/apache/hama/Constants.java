@@ -160,4 +160,7 @@ public interface Constants {
   static final byte[] EMPTY_BYTE_ARRAY = new byte[0];
 
   public static final int DEFAULT_GROOM_INFO_SERVER = 40015;
+  public static final String MESSAGE_FILTER_CLASS = "bsp.message.filter.class";
+  public static final String MESSAGE_FILTER_DOMAIN_PER_VERTEX = "graph.message.filter.domain.per.vertex";
+  public static final String MESSAGE_FILTER_MESSAGE_PER_VERTEX = "graph.message.filter.message.per.vertex";
 }
