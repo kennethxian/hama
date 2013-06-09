@@ -440,6 +440,8 @@ public class BSPJobClient extends Configured implements Tool {
         partitioningJob.set("bsp.partitioning.runner.job", "true");
         partitioningJob.getConfiguration().setBoolean(
             Constants.ENABLE_RUNTIME_PARTITIONING, false);
+        partitioningJob.getConfiguration().set(
+            Constants.MESSAGE_CLASS, "org.apache.hadoop.io.NullWritable");
         partitioningJob.setOutputPath(partitionDir);
 
         boolean isPartitioned = false;

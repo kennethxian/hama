@@ -24,13 +24,14 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataInputStream;
-import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.LocalFileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.io.ObjectWritable;
-import org.apache.hadoop.io.Writable;
+import org.apache.hadoop.io.WritableComparable;
+import org.apache.hadoop.util.ReflectionUtils;
+import org.apache.hama.Constants;
 import org.apache.hama.bsp.TaskAttemptID;
+import org.apache.hama.bsp.message.io.SortedFile;
 
 /**
  * A disk based queue that is backed by a raw file on local disk. <br/>
@@ -46,41 +47,58 @@ import org.apache.hama.bsp.TaskAttemptID;
  * configuration. <br/>
  * <b>It is experimental to use.</b>
  */
-public final class DiskQueue<M extends Writable> extends POJOMessageQueue<M> {
+public class SortedDiskQueue<M extends WritableComparable<M>> extends
+    POJOMessageQueue<M> {
 
-  public static final String DISK_QUEUE_PATH_KEY = "bsp.disk.queue.dir";
+  public static final String DISK_QUEUE_PATH_KEY = "bsp.sorted.disk.queue.dir";
+  public static final String DISK_QUEUE_BUFFER_SIZE_KEY = "bsp.sorted.disk.queue.buffer.size";
+  public static final String DISK_MERGED_FILE_NAME_KEY = "bsp.sorted.disk.merged.file.name";
 
-  private static final int MAX_RETRIES = 4;
-  private static final Log LOG = LogFactory.getLog(DiskQueue.class);
-
-  private static volatile int ONGOING_SEQUENCE_NUMBER = 0;
+  private static final Log LOG = LogFactory.getLog(SortedDiskQueue.class);
 
   private int size = 0;
   // injected via reflection
   private Configuration conf;
-  private FileSystem fs;
+  // private FileSystem fs;
 
-  private FSDataOutputStream writer;
   private FSDataInputStream reader;
 
-  private Path queuePath;
   private TaskAttemptID id;
-  private final ObjectWritable writable = new ObjectWritable();
+  // private final ObjectWritable writable = new ObjectWritable();
+  private SortedFile<M> sortedFile;
+  private String mergedFileName;
+  private Class<M> msgClass;
+  private LocalFileSystem localFileSystem;
+  // private Segment fileSegment;
+  private static int fileIndex;
 
+  @SuppressWarnings("unchecked")
   @Override
   public void init(Configuration conf, TaskAttemptID id) {
     this.id = id;
-    writable.setConf(conf);
     try {
-      //fs = FileSystem.get(conf);
-      fs = FileSystem.getLocal(conf);;
-      LOG.info("DiskQueue init, filesystem is " + fs.getClass().getName());
+      int bufferSize = conf.getInt(DISK_QUEUE_BUFFER_SIZE_KEY, 1000000);
+      LOG.info("SortedDiskQueue init, bufferSize is " + bufferSize);
       String configuredQueueDir = conf.get(DISK_QUEUE_PATH_KEY);
-      Path queueDir = null;
+      String[] realDir = null;
+      if (configuredQueueDir != null) {
+        realDir = configuredQueueDir.split(",");
+        if ((realDir != null) && (realDir.length > 0)) {
+          fileIndex = (fileIndex + 1) % realDir.length;
+          configuredQueueDir = realDir[fileIndex];
+        }
+      }
+      String queueDir = null;
       queueDir = getQueueDir(conf, id, configuredQueueDir);
-      fs.mkdirs(queueDir);
-      queuePath = new Path(queueDir, (ONGOING_SEQUENCE_NUMBER++)
-          + "_messages.seq");
+      msgClass = (Class<M>) conf.getClass(Constants.MESSAGE_CLASS, null);
+      // mergedFileName = conf.get(DISK_MERGED_FILE_NAME_KEY, "sortedmessage");
+      mergedFileName = queueDir + "/" + "mergedmessagefile";
+      sortedFile = new SortedFile<M>(queueDir, mergedFileName, bufferSize,
+          msgClass, conf);
+      localFileSystem = FileSystem.getLocal(conf);
+      // fs.mkdirs(queueDir);
+      // queuePath = new Path(queueDir, (ONGOING_SEQUENCE_NUMBER++)
+      // + "_messages.seq");
       prepareWrite();
     } catch (IOException e) {
       // we can't recover if something bad happens here..
@@ -90,12 +108,15 @@ public final class DiskQueue<M extends Writable> extends POJOMessageQueue<M> {
 
   @Override
   public void close() {
-    closeInternal(true);
     try {
-      fs.delete(queuePath.getParent(), true);
-    } catch (IOException e) {
-      LOG.error(e);
+      sortedFile.clear();
+    } catch (Exception e) {
+      LOG.error("SortedDiskQueue clean failed: " + e);
     }
+    /*
+     * closeInternal(true); try { fs.delete(queuePath.getParent(), true); }
+     * catch (IOException e) { LOG.error(e); }
+     */
   }
 
   /**
@@ -103,32 +124,14 @@ public final class DiskQueue<M extends Writable> extends POJOMessageQueue<M> {
    * phase ended.
    */
   private void closeInternal(boolean delete) {
-    try {
-      if (writer != null) {
-        writer.flush();
-        writer.close();
-        writer = null;
-      }
-    } catch (IOException e) {
-      LOG.error(e);
-    } finally {
-      if (fs != null && delete) {
-        try {
-          fs.delete(queuePath, true);
-        } catch (IOException e) {
-          LOG.error(e);
-        }
-      }
-      if (writer != null) {
-        try {
-          writer.flush();
-          writer.close();
-          writer = null;
-        } catch (IOException e) {
-          LOG.error(e);
-        }
-      }
-    }
+    /*
+     * try { if (writer != null) { writer.flush(); writer.close(); writer =
+     * null; } } catch (IOException e) { LOG.error(e); } finally { if (fs !=
+     * null && delete) { try { fs.delete(queuePath, true); } catch (IOException
+     * e) { LOG.error(e); } } if (writer != null) { try { writer.flush();
+     * writer.close(); writer = null; } catch (IOException e) { LOG.error(e); }
+     * } }
+     */
     try {
       if (reader != null) {
         reader.close();
@@ -150,10 +153,22 @@ public final class DiskQueue<M extends Writable> extends POJOMessageQueue<M> {
 
   @Override
   public void prepareRead() {
+    try {
+      sortedFile.close();
+    } catch (Exception e) {
+      LOG.error("SortedDiskQueue prepareRead failed: " + e);
+    }
     // make sure we've closed
     closeInternal(false);
+
     try {
-      reader = fs.open(queuePath);
+      if ((!localFileSystem.exists(new Path(mergedFileName)))
+          || (localFileSystem.getFileStatus(new Path(mergedFileName)).getLen() == 0)) {
+        size = 0;
+        return;
+      }
+      reader = localFileSystem.open(new Path(mergedFileName));
+      size = reader.readInt();
     } catch (IOException e) {
       // can't recover from that
       LOG.error(e);
@@ -163,19 +178,20 @@ public final class DiskQueue<M extends Writable> extends POJOMessageQueue<M> {
 
   @Override
   public void prepareWrite() {
-    try {
-      writer = fs.create(queuePath);
-    } catch (IOException e) {
-      // can't recover from that
-      LOG.error(e);
-      throw new RuntimeException(e);
-    }
+    /*
+     * try { writer = fs.create(queuePath); } catch (IOException e) { // can't
+     * recover from that LOG.error(e); throw new RuntimeException(e); }
+     */
   }
 
   @Override
   public final void addAll(Iterable<M> col) {
-    for (M item : col) {
-      add(item);
+    try {
+      for (M item : col) {
+        sortedFile.collect(item);
+      }
+    } catch (Exception e) {
+      LOG.error("SortedDiskQueue add addAll failed: " + e);
     }
   }
 
@@ -189,45 +205,45 @@ public final class DiskQueue<M extends Writable> extends POJOMessageQueue<M> {
 
   @Override
   public final void add(M item) {
-    size++;
     try {
-      new ObjectWritable(item).write(writer);
-    } catch (IOException e) {
-      LOG.error(e);
+      sortedFile.collect(item);
+    } catch (Exception e) {
+      LOG.error("SortedDiskQueue add failed: " + e);
     }
   }
 
   @Override
   public final void clear() {
-    closeInternal(true);
     size = 0;
     init(conf, id);
   }
 
-  @SuppressWarnings("unchecked")
   @Override
   public final M poll() {
     if (size == 0) {
       return null;
     }
-    size--;
-    int tries = 1;
-    while (tries <= MAX_RETRIES) {
-      try {
-        writable.readFields(reader);
-        if (size > 0) {
-          return (M) writable.get();
-        } else {
-          closeInternal(true);
-          return (M) writable.get();
-        }
-      } catch (IOException e) {
-        LOG.error("Retrying for the " + tries + "th time!", e);
+    M ret = null;
+    try {
+      ret = (M) ReflectionUtils.newInstance(msgClass, null);
+      ret.readFields(reader);
+      size--;
+      if (size <= 0) {
+        closeInternal(true);
       }
-      tries++;
+    } catch (Exception e) {
+      LOG.error("SortedDiskQueue poll failed: " + e);
     }
-    throw new RuntimeException("Message couldn't be read for " + tries
-        + " times! Giving up!");
+    return ret;
+
+    /*
+     * int tries = 1; while (tries <= MAX_RETRIES) { try {
+     * writable.readFields(reader); if (size > 0) { return (M) writable.get(); }
+     * else { closeInternal(true); return (M) writable.get(); } } catch
+     * (IOException e) { LOG.error("Retrying for the " + tries + "th time!", e);
+     * } tries++; } throw new RuntimeException("Message couldn't be read for " +
+     * tries + " times! Giving up!");
+     */
   }
 
   @Override
@@ -279,16 +295,16 @@ public final class DiskQueue<M extends Writable> extends POJOMessageQueue<M> {
   /**
    * Creates a path for a queue
    */
-  public static Path getQueueDir(Configuration conf, TaskAttemptID id,
+  public static String getQueueDir(Configuration conf, TaskAttemptID id,
       String configuredQueueDir) {
-    Path queueDir;
+    String queueDir;
     if (configuredQueueDir == null) {
       String hamaTmpDir = conf.get("hama.tmp.dir");
       if (hamaTmpDir != null) {
         queueDir = createDiskQueuePath(id, hamaTmpDir);
       } else {
         // use some local tmp dir
-        queueDir = createDiskQueuePath(id, "/tmp/messageStorage/");
+        queueDir = createDiskQueuePath(id, "/tmp/messageStorage");
       }
     } else {
       queueDir = createDiskQueuePath(id, configuredQueueDir);
@@ -301,14 +317,15 @@ public final class DiskQueue<M extends Writable> extends POJOMessageQueue<M> {
    * to store disk sequence files. <br/>
    * Structure is as follows: ${hama.tmp.dir}/diskqueue/job_id/task_attempt_id/
    */
-  private static Path createDiskQueuePath(TaskAttemptID id,
+  private static String createDiskQueuePath(TaskAttemptID id,
       String configuredPath) {
-    return new Path(new Path(new Path(configuredPath, "diskqueue"), id
-        .getJobID().toString()), id.getTaskID().toString());
+    return configuredPath + "/diskqueue" + "/" + id.getJobID().toString() + "/"
+        + id.getTaskID().toString();
   }
 
   @Override
   public boolean isMessageSerialized() {
     return false;
   }
+
 }
