@@ -274,10 +274,10 @@ public final class GraphJobRunner<V extends WritableComparable, E extends Writab
    * reached. <br/>
    * - if vertex is inactive, and received no message, return null.
    */
+  @SuppressWarnings("unchecked")
   private VertexMessageIterable<V, M> iterate(GraphJobMessage currentMessage,
       V firstMessageId, Vertex<V, E, M> vertex,
       BSPPeer<Writable, Writable, Writable, Writable, GraphJobMessage> peer) {
-    @SuppressWarnings("unchecked")
     int comparision = firstMessageId.compareTo(vertex.getVertexID());
     if (conf.getBoolean("hama.check.missing.vertex", true)) {
       if (comparision < 0) {
@@ -290,8 +290,12 @@ public final class GraphJobRunner<V extends WritableComparable, E extends Writab
         VertexMessageIterable<V, M> messageIterable = new VertexMessageIterable<V, M>(currentMessage,
           firstMessageId, peer);
         currentMessage = messageIterable.getOverflowMessage();
-        firstMessageId = (V)currentMessage.getVertexId();
-        comparision = firstMessageId.compareTo(vertex.getVertexID());
+        if (currentMessage != null) {
+          firstMessageId = (V)currentMessage.getVertexId();
+          comparision = firstMessageId.compareTo(vertex.getVertexID());
+        } else {
+          comparision = 1;
+        }
       }
     }
     if (comparision == 0) {
