@@ -25,6 +25,6 @@ bin=`cd "$bin"; pwd`
 
 # start bsp daemons
 # start zookeeper first to minimize connection errors at startup
-"$bin"/hama-daemons.sh --config "${HAMA_CONF_DIR}" start zookeeper
+#"$bin"/hama-daemons.sh --config "${HAMA_CONF_DIR}" start zookeeper
 "$bin"/hama-daemon.sh --config $HAMA_CONF_DIR start bspmaster
 "$bin"/hama-daemons.sh --config $HAMA_CONF_DIR start groom

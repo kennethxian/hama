@@ -157,4 +157,7 @@ public final class HadoopMessageManagerImpl<M extends Writable> extends
     return versionID;
   }
 
+  public boolean isAuthorized(String protocol) throws IOException {
+    return true;
+  }
 }

@@ -1376,4 +1376,7 @@ public class GroomServer implements Runnable, GroomProtocol, BSPPeerProtocol,
   public void process(WatchedEvent event) {
   }
 
+  public boolean isAuthorized(String protocol) throws IOException {
+    return true;
+  }
 }

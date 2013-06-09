@@ -130,6 +130,24 @@ for f in $HAMA_HOME/lib/*.jar; do
   CLASSPATH=${CLASSPATH}:$f;
 done
 
+for f in /usr/lib/hadoop/*.jar; do
+  CLASSPATH=${CLASSPATH}:$f;
+done
+
+for f in /usr/lib/hadoop/lib/*.jar; do
+  CLASSPATH=${CLASSPATH}:$f;
+done
+
+#CLASSPATH=${CLASSPATH}:/usr/lib/hadoop/conf
+
+for f in /usr/lib/hbase/*.jar; do
+  CLASSPATH=${CLASSPATH}:$f;
+done
+
+for f in /usr/lib/hbase/lib/*.jar; do
+  CLASSPATH=${CLASSPATH}:$f;
+done
+
 # add user-specified CLASSPATH last
 if [ "$HAMA_CLASSPATH" != "" ]; then
   CLASSPATH=${CLASSPATH}:${HAMA_CLASSPATH}

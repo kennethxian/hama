@@ -934,4 +934,8 @@ public class BSPMaster implements JobSubmissionProtocol, MasterProtocol,
     }
     return null;
   }
+
+  public boolean isAuthorized(String protocol) throws IOException {
+    return true;
+  }
 }
