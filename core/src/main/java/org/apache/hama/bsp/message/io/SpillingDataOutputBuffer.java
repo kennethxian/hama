@@ -411,6 +411,8 @@ public class SpillingDataOutputBuffer extends DataOutputStream {
      * Closes the spilling process.
      */
     public void flush() throws IOException {
+      // Force flush, change the threshold as 0 anyway
+      thresholdSize_ = 0;
       flushBuffer();
       flushInternal();
     }
