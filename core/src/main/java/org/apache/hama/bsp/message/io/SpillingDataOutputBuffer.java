@@ -228,7 +228,8 @@ public class SpillingDataOutputBuffer extends DataOutputStream {
       bufferList_ = new ArrayList<SpilledByteBuffer>(numberBuffers_);
       bufferState_ = new BitSet(numBuffers);
 
-      for (int i = 0; i < numBuffers / 2; ++i) {
+      int initBufferNum = numBuffers / 2 <= 0 ? 1 : numBuffers / 2;
+      for (int i = 0; i < initBufferNum; ++i) {
         bufferList_.add(new SpilledByteBuffer(direct_, bufferSize_));
       }
       currentBuffer_ = bufferList_.get(0);
@@ -411,8 +412,6 @@ public class SpillingDataOutputBuffer extends DataOutputStream {
      * Closes the spilling process.
      */
     public void flush() throws IOException {
-      // Force flush, change the threshold as 0 anyway
-      thresholdSize_ = 0;
       flushBuffer();
       flushInternal();
     }
@@ -423,29 +422,31 @@ public class SpillingDataOutputBuffer extends DataOutputStream {
 
       currentBuffer_.flip();
       spillStatus_.spillCompleted();
-      if (this.startedSpilling_) {
-        this.spillThread_.completeSpill();
-        boolean completionState = false;
-        try {
-          completionState = spillThreadState_.get();
-          if (!completionState) {
-            throw new IOException(
-                "Spilling Thread failed to complete sucessfully.");
+      try {
+        if (this.startedSpilling_) {
+          this.spillThread_.completeSpill();
+          boolean completionState = false;
+          try {
+            completionState = spillThreadState_.get();
+            if (!completionState) {
+              throw new IOException(
+                  "Spilling Thread failed to complete sucessfully.");
+            }
+          } catch (ExecutionException e) {
+            throw new IOException(e);
+          } catch (InterruptedException e) {
+            throw new IOException(e);
+          } finally {
+            this.spillThreadService_.shutdownNow();
           }
-        } catch (ExecutionException e) {
-          throw new IOException(e);
-        } catch (InterruptedException e) {
-          throw new IOException(e);
-        } finally {
-          closed_ = true;
-          this.processor.close();
-          this.spillThreadService_.shutdownNow();
+        } else {
+          this.processor.handleSpilledBuffer(currentBuffer_);
         }
-
+      } finally {
+        closed_ = true;
+        this.processor.close();
       }
-      closed_ = true;
     }
-
   }
 
   /**
