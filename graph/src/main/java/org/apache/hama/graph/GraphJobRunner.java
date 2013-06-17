@@ -282,16 +282,16 @@ public final class GraphJobRunner<V extends WritableComparable, E extends Writab
     if (conf.getBoolean("hama.check.missing.vertex", true)) {
       if (comparision < 0) {
         throw new IllegalArgumentException(
-          "Messages must never be behind the vertex in ID! Current Message ID: "
-              + firstMessageId + " vs. " + vertex.getVertexID());
-      } 
+            "Messages must never be behind the vertex in ID! Current Message ID: "
+                + firstMessageId + " vs. " + vertex.getVertexID());
+      }
     } else {
       while (comparision < 0) {
-        VertexMessageIterable<V, M> messageIterable = new VertexMessageIterable<V, M>(currentMessage,
-          firstMessageId, peer);
+        VertexMessageIterable<V, M> messageIterable = new VertexMessageIterable<V, M>(
+            currentMessage, firstMessageId, peer);
         currentMessage = messageIterable.getOverflowMessage();
         if (currentMessage != null) {
-          firstMessageId = (V)currentMessage.getVertexId();
+          firstMessageId = (V) currentMessage.getVertexId();
           comparision = firstMessageId.compareTo(vertex.getVertexID());
         } else {
           comparision = 1;

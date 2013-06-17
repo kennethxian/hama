@@ -50,8 +50,8 @@ public class SpillingQueue<M extends Writable> extends ByteArrayMessageQueue<M>
 
   private static final Log LOG = LogFactory.getLog(SpillingQueue.class);
 
-  private Configuration conf;
-  private SpillingDataOutputBuffer spillOutputBuffer;
+  protected Configuration conf;
+  protected SpillingDataOutputBuffer spillOutputBuffer;
   private int numMessagesWritten;
   private int numMessagesRead;
 
@@ -62,16 +62,16 @@ public class SpillingQueue<M extends Writable> extends ByteArrayMessageQueue<M>
   public final static String SPILLBUFFER_DIRECT = "hama.io.spillbuffer.direct";
   public final static String ENABLE_PREFETCH = "hama.io.spillbuffer.enableprefetch";
   public final static String SPILLBUFFER_MSGCLASS = "hama.io.spillbuffer.msgclass";
-  private int bufferCount;
-  private int bufferSize;
+  protected int bufferCount;
+  protected int bufferSize;
   private String fileName;
-  private int threshold;
-  private boolean direct;
+  protected int threshold;
+  protected boolean direct;
   private SpilledDataInputBuffer spilledInput;
-  private boolean objectWritableMode;
-  private ObjectWritable objectWritable;
+  protected boolean objectWritableMode;
+  protected ObjectWritable objectWritable;
 
-  private Class<M> messageClass;
+  protected Class<M> messageClass;
   private PreFetchCache<M> prefetchCache;
   private boolean enablePrefetch;
 

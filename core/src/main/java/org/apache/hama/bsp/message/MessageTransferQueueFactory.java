@@ -62,6 +62,7 @@ public class MessageTransferQueueFactory<M> {
     @SuppressWarnings("unchecked")
     @Override
     public MessageQueue<M> getSenderQueue(Configuration conf) {
+      LOG.info("getSenderQueue, it's " + conf.get(MessageManager.SENDER_QUEUE_TYPE_CLASS));
       return ReflectionUtils.newInstance(conf.getClass(
           MessageManager.SENDER_QUEUE_TYPE_CLASS, MemoryQueue.class,
           MessageQueue.class));
@@ -70,6 +71,7 @@ public class MessageTransferQueueFactory<M> {
     @SuppressWarnings("unchecked")
     @Override
     public MessageQueue<M> getReceiverQueue(Configuration conf) {
+      LOG.info("getReceiverQueue, it's " + conf.get(MessageManager.RECEIVE_QUEUE_TYPE_CLASS));
       return ReflectionUtils.newInstance(conf.getClass(
           MessageManager.RECEIVE_QUEUE_TYPE_CLASS, MemoryQueue.class,
           MessageQueue.class));

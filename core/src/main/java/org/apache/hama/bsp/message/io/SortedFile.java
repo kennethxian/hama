@@ -214,7 +214,6 @@ public final class SortedFile<M extends WritableComparable> implements
         new FileOutputStream(file)))) {*/
       // write the size in front, so we can allocate appropriate sized array
       // later on
-    LOG.info("xxxxx SortedFIle sortAndSpill called, file name is " + fileName);
     try {
       os.writeInt(size);
       for (int index = 0; index < size; index++) {

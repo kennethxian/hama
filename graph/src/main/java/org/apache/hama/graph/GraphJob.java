@@ -197,9 +197,10 @@ public class GraphJob extends BSPJob {
     }
 
     // add the default message queue to the sorted one
-    this.getConfiguration().setClass(MessageManager.QUEUE_TYPE_CLASS,
-        SortedMessageQueue.class, MessageQueue.class);
-    this.getConfiguration().set(Constants.MESSAGE_CLASS, "org.apache.hama.graph.GraphJobMessage");
+    // this.getConfiguration().setClass(MessageManager.QUEUE_TYPE_CLASS,
+    // SortedMessageQueue.class, MessageQueue.class);
+    this.getConfiguration().set(Constants.MESSAGE_CLASS,
+        "org.apache.hama.graph.GraphJobMessage");
 
     super.submit();
   }

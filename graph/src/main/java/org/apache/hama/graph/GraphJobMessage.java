@@ -205,12 +205,12 @@ public final class GraphJobMessage implements
     }
 
     protected GraphJobMessageComparator(
-        Class<? extends WritableComparable> keyClass) {
+        Class<? extends WritableComparable<?>> keyClass) {
       this(keyClass, false);
     }
 
     protected GraphJobMessageComparator(
-        Class<? extends WritableComparable> keyClass, boolean createInstances) {
+        Class<? extends WritableComparable<?>> keyClass, boolean createInstances) {
       super(keyClass, createInstances);
       key1 = new GraphJobMessage();
       key2 = new GraphJobMessage();
