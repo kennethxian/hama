@@ -36,6 +36,7 @@ import org.apache.hama.bsp.BSPMessageBundle;
 import org.apache.hama.bsp.BSPPeer;
 import org.apache.hama.bsp.BSPPeerImpl;
 import org.apache.hama.bsp.TaskAttemptID;
+import org.apache.hama.bsp.message.queue.DirectQueue;
 import org.apache.hama.bsp.message.queue.DiskQueue;
 import org.apache.hama.bsp.message.queue.MemoryQueue;
 import org.apache.hama.bsp.message.queue.MessageQueue;
@@ -169,6 +170,7 @@ public abstract class AbstractMessageManager<M extends Writable> implements
    * @see org.apache.hama.bsp.message.MessageManager#send(java.lang.String,
    * org.apache.hadoop.io.Writable)
    */
+  @SuppressWarnings("unchecked")
   @Override
   public void send(String peerName, M msg) throws IOException {
     InetSocketAddress targetPeerAddress = null;
@@ -182,8 +184,8 @@ public abstract class AbstractMessageManager<M extends Writable> implements
     MessageQueue<M> queue = outgoingQueues.get(targetPeerAddress);
     if (queue == null) {
       queue = getSenderQueue();
-      if (queue instanceof SpillingNetworkQueue) {
-        ((SpillingNetworkQueue<M>) queue).setTargetAddress(this,
+      if (queue instanceof DirectQueue) {
+        ((DirectQueue<M>) queue).setTargetAddress(this,
             targetPeerAddress);
       }
     }

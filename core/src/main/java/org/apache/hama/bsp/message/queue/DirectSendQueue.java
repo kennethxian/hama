@@ -36,7 +36,8 @@ import org.apache.hama.bsp.BSPMessageBundle;
 import org.apache.hama.bsp.TaskAttemptID;
 import org.apache.hama.bsp.message.MessageManager;
 
-public class DirectSendQueue<M extends Writable> extends POJOMessageQueue<M> {
+public class DirectSendQueue<M extends Writable> extends POJOMessageQueue<M>
+    implements DirectQueue<M> {
   private static final Log LOG = LogFactory.getLog(DirectSendQueue.class);
   private ArrayBlockingQueue<M> msgQueue;
   private MessageManager<M> messenger;
@@ -78,6 +79,7 @@ public class DirectSendQueue<M extends Writable> extends POJOMessageQueue<M> {
     this.conf = conf;
   }
 
+  @Override
   public void setTargetAddress(MessageManager<M> messenger,
       InetSocketAddress target) {
     this.messenger = messenger;
