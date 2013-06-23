@@ -19,6 +19,7 @@ package org.apache.hama.bsp.message.queue;
 
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.Random;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -69,8 +70,22 @@ public class SortedDiskQueue<M extends WritableComparable<M>> extends
   private String mergedFileName;
   private Class<M> msgClass;
   private LocalFileSystem localFileSystem;
+
   // private Segment fileSegment;
-  private static int fileIndex;
+
+  public static String getRandomConfiguredDir(Configuration conf) {
+    String configuredQueueDir = conf.get(DISK_QUEUE_PATH_KEY);
+    String[] realDir = null;
+    if (configuredQueueDir != null) {
+      realDir = configuredQueueDir.split(",");
+      if ((realDir != null) && (realDir.length > 0)) {
+        int fileIndex = (int) Math.abs((new Random()).nextInt(Integer.MAX_VALUE))
+            % realDir.length;
+        configuredQueueDir = realDir[fileIndex];
+      }
+    }
+    return configuredQueueDir;
+  }
 
   @SuppressWarnings("unchecked")
   @Override
@@ -79,17 +94,11 @@ public class SortedDiskQueue<M extends WritableComparable<M>> extends
     try {
       int bufferSize = conf.getInt(DISK_QUEUE_BUFFER_SIZE_KEY, 1000000);
       LOG.info("SortedDiskQueue init, bufferSize is " + bufferSize);
-      String configuredQueueDir = conf.get(DISK_QUEUE_PATH_KEY);
-      String[] realDir = null;
-      if (configuredQueueDir != null) {
-        realDir = configuredQueueDir.split(",");
-        if ((realDir != null) && (realDir.length > 0)) {
-          fileIndex = (fileIndex + 1) % realDir.length;
-          configuredQueueDir = realDir[fileIndex];
-        }
-      }
+
       String queueDir = null;
-      queueDir = getQueueDir(conf, id, configuredQueueDir);
+      queueDir = getQueueDir(conf, id, getRandomConfiguredDir(conf));
+      LOG.info("SortedDiskQueue init, queueDir is " + queueDir);
+
       msgClass = (Class<M>) conf.getClass(Constants.MESSAGE_CLASS, null);
       // mergedFileName = conf.get(DISK_MERGED_FILE_NAME_KEY, "sortedmessage");
       mergedFileName = queueDir + "/" + "mergedmessagefile";
