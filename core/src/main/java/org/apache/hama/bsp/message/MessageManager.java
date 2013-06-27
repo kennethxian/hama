@@ -123,4 +123,7 @@ public interface MessageManager<M extends Writable> {
   public void registerListener(MessageEventListener<M> listener)
       throws IOException;
 
+  public void directSetReceiveQueue(MessageQueue<M> queue);
+
+  public MessageQueue<M> getCurrentReceiveQueue();
 }

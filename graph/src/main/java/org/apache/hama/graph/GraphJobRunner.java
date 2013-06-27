@@ -37,6 +37,7 @@ import org.apache.hama.bsp.HashPartitioner;
 import org.apache.hama.bsp.Partitioner;
 import org.apache.hama.bsp.PartitioningRunner.DefaultRecordConverter;
 import org.apache.hama.bsp.PartitioningRunner.RecordConverter;
+import org.apache.hama.bsp.message.queue.MessageQueue;
 import org.apache.hama.bsp.sync.SyncException;
 import org.apache.hama.graph.IDSkippingIterator.Strategy;
 import org.apache.hama.util.KeyValuePair;
@@ -183,20 +184,31 @@ public final class GraphJobRunner<V extends WritableComparable, E extends Writab
       // in case we need to sync, we need to replay the messages that already
       // are added to the queue. This prevents loosing messages when using
       // aggregators.
-      if (firstVertexMessage != null) {
-        peer.send(peer.getPeerName(), firstVertexMessage);
-      }
-      GraphJobMessage msg = null;
-      while ((msg = peer.getCurrentMessage()) != null) {
-        peer.send(peer.getPeerName(), msg);
-      }
+      // if (firstVertexMessage != null) {
+      // peer.send(peer.getPeerName(), firstVertexMessage);
+      // }
+      // GraphJobMessage msg = null;
+      // while ((msg = peer.getCurrentMessage()) != null) {
+      // peer.send(peer.getPeerName(), msg);
+      // }
+      // Remember old receive queue
+      MessageQueue<GraphJobMessage> currentReceiveQueue = peer
+          .getCurrentReceiveQueue();
+      peer.directSetReceiveQueue(null);
+      GraphJobMessage currentFirstVertexMessage = firstVertexMessage;
       // now sync
       peer.sync();
       // now the map message must be read that might be send from the master
       updated = aggregationRunner.receiveAggregatedValues(peer
           .getCurrentMessage().getMap(), iteration);
       // set the first vertex message back to the message it had before sync
-      firstVertexMessage = peer.getCurrentMessage();
+      // Restore Queue
+      firstVertexMessage = currentFirstVertexMessage;
+      MessageQueue<GraphJobMessage> tempQueue = peer.getCurrentReceiveQueue();
+      if (tempQueue != null) {
+        tempQueue.close();
+      }
+      peer.directSetReceiveQueue(currentReceiveQueue);
     }
     return firstVertexMessage;
   }

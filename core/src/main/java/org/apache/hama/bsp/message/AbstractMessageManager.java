@@ -41,7 +41,6 @@ import org.apache.hama.bsp.message.queue.DiskQueue;
 import org.apache.hama.bsp.message.queue.MemoryQueue;
 import org.apache.hama.bsp.message.queue.MessageQueue;
 import org.apache.hama.bsp.message.queue.SingleLockQueue;
-import org.apache.hama.bsp.message.queue.SpillingNetworkQueue;
 import org.apache.hama.bsp.message.queue.SynchronizedQueue;
 import org.apache.hama.util.BSPNetUtils;
 
@@ -159,6 +158,9 @@ public abstract class AbstractMessageManager<M extends Writable> implements
    */
   @Override
   public final void clearOutgoingQueues() {
+    if (localQueue != null) {
+      localQueue.close();
+    }
     localQueue = localQueueForNextIteration.getMessageQueue();
     localQueue.prepareRead();
     localQueueForNextIteration = getSynchronizedReceiverQueue();
@@ -182,11 +184,11 @@ public abstract class AbstractMessageManager<M extends Writable> implements
       peerSocketCache.put(peerName, targetPeerAddress);
     }
     MessageQueue<M> queue = outgoingQueues.get(targetPeerAddress);
+
     if (queue == null) {
       queue = getSenderQueue();
       if (queue instanceof DirectQueue) {
-        ((DirectQueue<M>) queue).setTargetAddress(this,
-            targetPeerAddress);
+        ((DirectQueue<M>) queue).setTargetAddress(this, targetPeerAddress);
       }
     }
     queue.add(msg);
@@ -302,6 +304,16 @@ public abstract class AbstractMessageManager<M extends Writable> implements
     peer.incrementCounter(BSPPeerImpl.PeerCounter.TOTAL_MESSAGES_RECEIVED, 1L);
     notifyReceivedMessage((M) message);
 
+  }
+
+  @Override
+  public void directSetReceiveQueue(MessageQueue<M> queue) {
+    this.localQueue = queue;
+  }
+
+  @Override
+  public MessageQueue<M> getCurrentReceiveQueue() {
+    return this.localQueue;
   }
 
 }

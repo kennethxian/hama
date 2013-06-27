@@ -18,7 +18,6 @@
 
 package org.apache.hama.bsp.message.io;
 
-
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -116,8 +115,10 @@ public final class SortedFile<M extends WritableComparable> implements
    *           exists.
    */
   public SortedFile(String dir, String finalFileName, int bufferSize,
-      Class<M> msgClass, boolean intermediateMerge, Configuration conf) throws IOException {
-    this(dir, finalFileName, bufferSize, msgClass, true, intermediateMerge, conf);
+      Class<M> msgClass, boolean intermediateMerge, Configuration conf)
+      throws IOException {
+    this(dir, finalFileName, bufferSize, msgClass, true, intermediateMerge,
+        conf);
   }
 
   /**
@@ -139,17 +140,17 @@ public final class SortedFile<M extends WritableComparable> implements
    *           exists.
    */
   SortedFile(String dir, String finalFileName, int bufferSize,
-      Class<M> msgClass, boolean mergeFiles, boolean intermediateMerge, Configuration conf)
-      throws IOException {
+      Class<M> msgClass, boolean mergeFiles, boolean intermediateMerge,
+      Configuration conf) throws IOException {
     this.dir = dir;
     this.destinationFileName = finalFileName;
     this.msgClass = msgClass;
     this.mergeFiles = mergeFiles;
     this.intermediateMerge = intermediateMerge;
-    //Files.createDirectories(Paths.get(dir));
+    // Files.createDirectories(Paths.get(dir));
     this.conf = conf;
     init(this.dir);
-    
+
     this.bufferThresholdSize = (int) (bufferSize * SPILL_TRIGGER_BUFFER_FILL_PERCENTAGE);
     // create an instance of the msgClass beforehand, so raw comparators are
     // registered
@@ -163,17 +164,20 @@ public final class SortedFile<M extends WritableComparable> implements
   }
 
   public void init(String dir) throws IOException {
-    //this.conf = conf;
+    // this.conf = conf;
 
     localFileSystem = FileSystem.getLocal(conf);
     localFileSystem.mkdirs(new Path(dir));
-    /*staticFile = rootPath + "static.graph";
-    local.delete(new Path(staticFile), false);
-    staticGraphPartsDos = local.create(new Path(staticFile));
-    String softGraphFileName = getSoftGraphFileName(rootPath, currentStep);
-    local.delete(new Path(softGraphFileName), false);
-    softGraphPartsDos = local.create(new Path(dir));*/
+    /*
+     * staticFile = rootPath + "static.graph"; local.delete(new
+     * Path(staticFile), false); staticGraphPartsDos = local.create(new
+     * Path(staticFile)); String softGraphFileName =
+     * getSoftGraphFileName(rootPath, currentStep); local.delete(new
+     * Path(softGraphFileName), false); softGraphPartsDos = local.create(new
+     * Path(dir));
+     */
   }
+
   /**
    * Collects a message. If the buffer threshold is exceeded it will sort the
    * buffer and spill to disk. Note that this is synchronous, so this waits
@@ -207,13 +211,15 @@ public final class SortedFile<M extends WritableComparable> implements
     offsets.add(bufferEnd);
     SORTER.sort(this, 0, size);
     // write to file
-    //File file = new File(dir, fileCount + ".bin");
+    // File file = new File(dir, fileCount + ".bin");
     String fileName = dir + "/" + fileCount + ".bin";
     FSDataOutputStream os = localFileSystem.create(new Path(fileName));
-    /*try (DataOutputStream os = new DataOutputStream(new BufferedOutputStream(
-        new FileOutputStream(file)))) {*/
-      // write the size in front, so we can allocate appropriate sized array
-      // later on
+    /*
+     * try (DataOutputStream os = new DataOutputStream(new BufferedOutputStream(
+     * new FileOutputStream(file)))) {
+     */
+    // write the size in front, so we can allocate appropriate sized array
+    // later on
     try {
       os.writeInt(size);
       for (int index = 0; index < size; index++) {
@@ -225,13 +231,13 @@ public final class SortedFile<M extends WritableComparable> implements
         // write the length in front of the record
         WritableUtils.writeVInt(os, len);
         os.write(buf.getData(), off, len);
-      } 
+      }
     } finally {
       os.close();
     }
     this.files.add(fileName);
     fileCount++;
-  } 
+  }
 
   @Override
   public int compare(int left, int right) {
@@ -265,18 +271,19 @@ public final class SortedFile<M extends WritableComparable> implements
     }
     if (mergeFiles) {
       try {
-        LOG.info("Starting"
-            + (intermediateMerge ? " intermediate" : "") + " merge of "
-            + files.size() + " files.");
-        Merger.merge(msgClass, intermediateMerge, destinationFileName, files, conf);
+        LOG.info("Starting" + (intermediateMerge ? " intermediate" : "")
+            + " merge of " + files.size() + " files.");
+        Merger.merge(msgClass, intermediateMerge, destinationFileName, files,
+            conf);
+        LOG.info("Merge complete");
       } catch (IOException e) {
         throw e;
       }
     }
   }
-  
+
   public void clear() throws IOException {
     localFileSystem.delete(new Path(dir), true);
-    //localFileSystem.delete(new Path(destinationFileName), true);
+    // localFileSystem.delete(new Path(destinationFileName), true);
   }
 }

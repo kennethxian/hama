@@ -329,7 +329,7 @@ public class SortedDiskQueue<M extends WritableComparable<M>> extends
   private static String createDiskQueuePath(TaskAttemptID id,
       String configuredPath) {
     return configuredPath + "/diskqueue" + "/" + id.getJobID().toString() + "/"
-        + id.getTaskID().toString();
+        + id.getTaskID().toString() + "_" + System.currentTimeMillis();
   }
 
   @Override

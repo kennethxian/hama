@@ -31,7 +31,8 @@ import org.apache.hama.bsp.message.io.NetworkSpilledDataProcessor;
 import org.apache.hama.bsp.message.io.SpilledDataProcessor;
 import org.apache.hama.bsp.message.io.SpillingDataOutputBuffer;
 
-public class SpillingNetworkQueue<M extends Writable> extends SpillingQueue<M> {
+public class SpillingNetworkQueue<M extends Writable> extends SpillingQueue<M>
+    implements DirectQueue<M> {
   private static final Log LOG = LogFactory.getLog(SpillingNetworkQueue.class);
 
   private class NullSpillIterator implements Iterator<M> {
@@ -53,6 +54,7 @@ public class SpillingNetworkQueue<M extends Writable> extends SpillingQueue<M> {
 
   }
 
+  @Override
   public void setTargetAddress(MessageManager<M> messenger,
       InetSocketAddress target) {
     SpilledDataProcessor processor;

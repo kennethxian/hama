@@ -23,6 +23,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.io.Writable;
 import org.apache.hama.Constants;
 import org.apache.hama.bsp.Counters.Counter;
+import org.apache.hama.bsp.message.queue.MessageQueue;
 import org.apache.hama.bsp.sync.SyncException;
 import org.apache.hama.util.KeyValuePair;
 
@@ -196,4 +197,8 @@ public interface BSPPeer<K1, V1, K2, V2, M extends Writable> extends Constants {
    * @return the task id of this task.
    */
   public TaskAttemptID getTaskId();
+
+  public void directSetReceiveQueue(MessageQueue<M> queue);
+
+  public MessageQueue<M> getCurrentReceiveQueue();
 }
