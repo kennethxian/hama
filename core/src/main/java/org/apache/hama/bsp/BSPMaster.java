@@ -144,6 +144,8 @@ public class BSPMaster implements JobSubmissionProtocol, MasterProtocol,
 
   private Instructor instructor;
 
+  private GroomServerChecker groomServerChecker;
+
   private final List<JobInProgressListener> jobInProgressListeners = new CopyOnWriteArrayList<JobInProgressListener>();
 
   private final AtomicReference<Supervisor> supervisor = new AtomicReference<Supervisor>();
@@ -168,6 +170,7 @@ public class BSPMaster implements JobSubmissionProtocol, MasterProtocol,
           if (old.equals(groomStatus)) {
             totalTasks -= old.countTasks();
             tmpStatus = groomStatus;
+            tmpStatus.setLastSeen(System.currentTimeMillis());
             updateGroomServersKey(old, tmpStatus);
             break;
           }
@@ -260,6 +263,41 @@ public class BSPMaster implements JobSubmissionProtocol, MasterProtocol,
           Thread.currentThread().interrupt();
         } catch (Exception e) {
           LOG.error("Fail to execute directive command.", e);
+        }
+      }
+    }
+  }
+
+  private class GroomServerChecker extends Thread {
+    private long checkInterval;
+    private long groomServerHeartBeatTimeout;
+
+    public GroomServerChecker() {
+      checkInterval = conf.getLong("bsp.monitor.groomserver.check.interval",
+          5000);
+      groomServerHeartBeatTimeout = conf.getLong(
+          "bsp.monitor.groomserver.heartbeat.timeout", 5000);
+    }
+
+    void handleTimeoutGroomServer(GroomServerStatus status) {
+      moveToBlackList(status.getGroomHostName());
+    }
+
+    @Override
+    public void run() {
+      while (true) {
+        try {
+          long current = System.currentTimeMillis();
+          for (GroomServerStatus groomStatus : groomServers.keySet()) {
+            if (current - groomStatus.getLastSeen() > groomServerHeartBeatTimeout) {
+              handleTimeoutGroomServer(groomStatus);
+            }
+          }
+          Thread.sleep(checkInterval);
+
+        } catch (Throwable t) {
+          // make the thread run forever
+          t.printStackTrace();
         }
       }
     }
@@ -382,6 +420,8 @@ public class BSPMaster implements JobSubmissionProtocol, MasterProtocol,
         LOG.warn("Fail to create Worker client at host");
         return false;
       }
+      removeOutOfBlackList(status.getGroomHostName());
+      status.setLastSeen(System.currentTimeMillis());
       // TODO: need to check if peer name has changed
       groomServers.putIfAbsent(status, wc);
     } catch (UnsupportedOperationException u) {
@@ -558,6 +598,10 @@ public class BSPMaster implements JobSubmissionProtocol, MasterProtocol,
         new ReportGroomStatusHandler());
     instructor.start();
 
+    groomServerChecker = new GroomServerChecker();
+    groomServerChecker.setDaemon(true);
+    groomServerChecker.start();
+
     LOG.info("Starting RUNNING");
 
     this.masterServer.join();
@@ -678,9 +722,10 @@ public class BSPMaster implements JobSubmissionProtocol, MasterProtocol,
       LOG.info("[moveToBlackList()]GroomServerStatus's host name:"
           + groomStatus.getGroomHostName() + " host:" + host);
       if (groomStatus.getGroomHostName().equals(host)) {
-        boolean result = groomServers.remove(groomStatus,
-            findGroomServer(groomStatus));
-        if (!result) {
+        // boolean result = groomServers.remove(groomStatus,
+        // findGroomServer(groomStatus));
+        GroomProtocol result = groomServers.remove(groomStatus);
+        if (result == null) {
           LOG.error("Fail to remove " + host + " out of groom server cache!");
         }
         blackList.add(groomStatus);
