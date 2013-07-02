@@ -79,8 +79,8 @@ public class SortedDiskQueue<M extends WritableComparable<M>> extends
     if (configuredQueueDir != null) {
       realDir = configuredQueueDir.split(",");
       if ((realDir != null) && (realDir.length > 0)) {
-        int fileIndex = (int) Math.abs((new Random()).nextInt(Integer.MAX_VALUE))
-            % realDir.length;
+        int fileIndex = (int) Math.abs((new Random())
+            .nextInt(Integer.MAX_VALUE)) % realDir.length;
         configuredQueueDir = realDir[fileIndex];
       }
     }
@@ -197,7 +197,7 @@ public class SortedDiskQueue<M extends WritableComparable<M>> extends
   public final void addAll(Iterable<M> col) {
     try {
       for (M item : col) {
-        sortedFile.collect(item);
+        add(item);
       }
     } catch (Exception e) {
       LOG.error("SortedDiskQueue add addAll failed: " + e);

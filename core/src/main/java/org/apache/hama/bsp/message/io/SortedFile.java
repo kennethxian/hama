@@ -22,6 +22,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.LinkedBlockingQueue;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -33,10 +34,6 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.DataOutputBuffer;
 import org.apache.hadoop.io.WritableComparable;
 import org.apache.hadoop.io.WritableComparator;
-import org.apache.hadoop.io.WritableUtils;
-import org.apache.hadoop.util.IndexedSortable;
-import org.apache.hadoop.util.IndexedSorter;
-import org.apache.hadoop.util.QuickSort;
 import org.apache.hadoop.util.ReflectionUtils;
 
 /**
@@ -51,16 +48,15 @@ import org.apache.hadoop.util.ReflectionUtils;
  */
 @SuppressWarnings("rawtypes")
 public final class SortedFile<M extends WritableComparable> implements
-    IndexedSortable, Closeable {
+    Closeable {
   private static final Log LOG = LogFactory.getLog(SortedFile.class);
 
   private static final float SPILL_TRIGGER_BUFFER_FILL_PERCENTAGE = 0.9f;
-  private static final IndexedSorter SORTER = new QuickSort();
 
   private final String dir;
   private final String destinationFileName;
   private final WritableComparator comp;
-  private final DataOutputBuffer buf;
+  private DataOutputBuffer buf;
   private final int bufferThresholdSize;
 
   private int fileCount;
@@ -73,6 +69,9 @@ public final class SortedFile<M extends WritableComparable> implements
   private boolean intermediateMerge;
   private Configuration conf;
   private LocalFileSystem localFileSystem;
+
+  private int bufferSize;
+  private LinkedBlockingQueue<SpillAndSortThread> threadQueue;
 
   /**
    * Creates a single sorted file. This means, there is no intermediate
@@ -146,6 +145,7 @@ public final class SortedFile<M extends WritableComparable> implements
     this.destinationFileName = finalFileName;
     this.msgClass = msgClass;
     this.mergeFiles = mergeFiles;
+    this.bufferSize = bufferSize;
     this.intermediateMerge = intermediateMerge;
     // Files.createDirectories(Paths.get(dir));
     this.conf = conf;
@@ -161,6 +161,9 @@ public final class SortedFile<M extends WritableComparable> implements
     this.offsets = new ArrayList<Integer>();
     this.indices = new ArrayList<Integer>();
     this.files = new ArrayList<String>();
+
+    int spillThreadNum = conf.getInt("bsp.sorted.disk.spill.thread.number", 2);
+    threadQueue = new LinkedBlockingQueue<SpillAndSortThread>(spillThreadNum);
   }
 
   public void init(String dir) throws IOException {
@@ -192,83 +195,65 @@ public final class SortedFile<M extends WritableComparable> implements
     indices.add(size);
     size++;
     if (buf.getLength() > bufferThresholdSize) {
-      sortAndSpill(buf.getLength());
-      offsets.clear();
-      indices.clear();
-      buf.reset();
-      size = 0;
+      offsets.add(buf.getLength());
+      sortAndSpill();
+      reInitBuf();
+      // offsets.clear();
+      // indices.clear();
+      // buf.reset();
+      // size = 0;
     }
   }
 
-  /**
-   * First sort, then spill the buffer to disk.
-   * 
-   * @param bufferEnd the end of the buffer.
-   * @throws IOException when IO error happens.
-   */
-  private void sortAndSpill(int bufferEnd) throws IOException {
-    // add the end of the buffer to the list for convenience
-    offsets.add(bufferEnd);
-    SORTER.sort(this, 0, size);
-    // write to file
-    // File file = new File(dir, fileCount + ".bin");
+  private void reInitBuf() {
+    this.buf = new DataOutputBuffer(bufferSize);
+    this.offsets = new ArrayList<Integer>();
+    this.indices = new ArrayList<Integer>();
+    this.size = 0;
+  }
+
+  private void sortAndSpill() throws IOException {
     String fileName = dir + "/" + fileCount + ".bin";
     FSDataOutputStream os = localFileSystem.create(new Path(fileName));
-    /*
-     * try (DataOutputStream os = new DataOutputStream(new BufferedOutputStream(
-     * new FileOutputStream(file)))) {
-     */
-    // write the size in front, so we can allocate appropriate sized array
-    // later on
+
+    SpillAndSortThread thread = new SpillAndSortThread(offsets, indices, size,
+        buf, os, comp, threadQueue);
     try {
-      os.writeInt(size);
-      for (int index = 0; index < size; index++) {
-        // now we have to translate our sorted indices back to the raw bytes
-        int x = indices.get(index);
-        int off = offsets.get(x);
-        int follow = x + 1;
-        int len = offsets.get(follow) - off;
-        // write the length in front of the record
-        WritableUtils.writeVInt(os, len);
-        os.write(buf.getData(), off, len);
-      }
-    } finally {
-      os.close();
+      threadQueue.put(thread);
+    } catch (InterruptedException e) {
+      e.printStackTrace();
     }
+    thread.start();
+
     this.files.add(fileName);
     fileCount++;
   }
 
   @Override
-  public int compare(int left, int right) {
-    // calculate the offsets for the data.
-    int leftTranslated = indices.get(left);
-    int leftEndTranslated = leftTranslated + 1;
-    int rightTranslated = indices.get(right);
-    int rightEndTranslated = rightTranslated + 1;
-
-    int leftOffset = offsets.get(leftTranslated);
-    int rightOffset = offsets.get(rightTranslated);
-
-    int leftLen = offsets.get(leftEndTranslated) - leftOffset;
-    int rightLen = offsets.get(rightEndTranslated) - rightOffset;
-    return comp.compare(buf.getData(), leftOffset, leftLen, buf.getData(),
-        rightOffset, rightLen);
-  }
-
-  @Override
-  public void swap(int left, int right) {
-    // swaps two indices in their files.
-    int tmp = indices.get(left);
-    indices.set(left, indices.get(right));
-    indices.set(right, tmp);
-  }
-
-  @Override
   public void close() throws IOException {
     if (buf.getLength() > 0) {
-      sortAndSpill(buf.getLength());
+      offsets.add(buf.getLength());
+      sortAndSpill();
     }
+    waitSpillCompleted();
+    mergeFiles();
+  }
+
+  void waitSpillCompleted() {
+    while (true) {
+      if (threadQueue.size() <= 0) {
+        break;
+      }
+
+      try {
+        Thread.sleep(2000);
+      } catch (InterruptedException e) {
+        e.printStackTrace();
+      }
+    }
+  }
+
+  public void mergeFiles() throws IOException {
     if (mergeFiles) {
       try {
         LOG.info("Starting" + (intermediateMerge ? " intermediate" : "")
