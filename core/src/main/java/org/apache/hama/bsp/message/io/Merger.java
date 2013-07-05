@@ -20,12 +20,12 @@ package org.apache.hama.bsp.message.io;
 
 import java.io.Closeable;
 import java.io.DataInputStream;
-
 import java.io.IOException;
-
 import java.util.Arrays;
 import java.util.List;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileSystem;
@@ -47,6 +47,11 @@ import org.apache.hadoop.util.PriorityQueue;
  */
 @SuppressWarnings("rawtypes")
 public final class Merger<M extends WritableComparable> {
+  enum SEGMENT_TYPE {
+    MEMORY, FILE
+  };
+
+  private static final Log LOG = LogFactory.getLog(Merger.class);
 
   private final String outputFile;
   private final List<String> mergeFiles;
@@ -54,13 +59,24 @@ public final class Merger<M extends WritableComparable> {
   private final boolean intermediateMerge;
   private LocalFileSystem localFileSystem;
 
-  private Merger(Class<M> msgClass, boolean intermediateMerge, String outputFile,
-      List<String> list, Configuration conf) throws IOException {
+  private List<Integer> finalIndices;
+  private List<Integer> finalOffsets;
+  private DataOutputBuffer finalBuf;
+  private int finalSize;
+
+  private Merger(Class<M> msgClass, boolean intermediateMerge,
+      String outputFile, List<String> list, Configuration conf,
+      List<Integer> indices, List<Integer> offsets, DataOutputBuffer buf,
+      int size) throws IOException {
     this.intermediateMerge = intermediateMerge;
     this.outputFile = outputFile;
     this.mergeFiles = list;
     this.comp = WritableComparator.get(msgClass);
     this.localFileSystem = FileSystem.getLocal(conf);
+    this.finalIndices = indices;
+    this.finalOffsets = offsets;
+    this.finalBuf = buf;
+    this.finalSize = size;
   }
 
   /**
@@ -68,13 +84,8 @@ public final class Merger<M extends WritableComparable> {
    */
   private void mergeFiles() throws IOException {
     // just move if we have a single file and intermediate merge turned on
-    if (intermediateMerge && mergeFiles.size() == 1) {
-      /*FileSystems
-          .getDefault()
-          .provider()
-          .move(Paths.get(mergeFiles.get(0).toURI()),
-              Paths.get(outputFile.toURI()),
-              StandardCopyOption.REPLACE_EXISTING);*/
+    if ((intermediateMerge && mergeFiles.size() == 1)
+        && (finalBuf == null || finalBuf.size() == 0)) {
       localFileSystem.rename(new Path(mergeFiles.get(0)), new Path(outputFile));
       return;
     }
@@ -87,19 +98,31 @@ public final class Merger<M extends WritableComparable> {
 
     // we use a priority queue to track sorted segments and minimize the
     // comparisions between the keys.
-    SegmentedPriorityQueue segments = new SegmentedPriorityQueue(
-        mergeFiles.size());
+    int segmentNum = (finalBuf == null || finalBuf.size() == 0) ? mergeFiles
+        .size() : mergeFiles.size() + 1;
+    SegmentedPriorityQueue segments = new SegmentedPriorityQueue(segmentNum);
     int sumItems = 0;
     for (int i = 0; i < mergeFiles.size(); i++) {
       Segment segment = new Segment(mergeFiles.get(i));
       segments.put(segment);
       sumItems += segment.getItems();
     }
-    int active = mergeFiles.size();
+
+    // and memory segment
+    if (finalBuf != null && finalBuf.size() > 0) {
+      LOG.info("Add memory segment.");
+      Segment memSegment = new Segment(finalBuf.getData(), finalIndices,
+          finalOffsets, finalSize);
+      segments.put(memSegment);
+      sumItems += memSegment.getItems();
+    }
+    int active = segmentNum;
     FSDataOutputStream dos = localFileSystem.create(new Path(outputFile));
-    /*try (DataOutputStream dos = new DataOutputStream(new BufferedOutputStream(
-        new FileOutputStream(outputFile)))) {*/
-      // write the number of items in front of the merged segments
+    /*
+     * try (DataOutputStream dos = new DataOutputStream(new
+     * BufferedOutputStream( new FileOutputStream(outputFile)))) {
+     */
+    // write the number of items in front of the merged segments
     try {
       dos.writeInt(sumItems);
       while (active > 0) {
@@ -132,7 +155,7 @@ public final class Merger<M extends WritableComparable> {
     if (!intermediateMerge) {
       // delete the temporary files if not intermediate
       for (String file : mergeFiles) {
-        //Files.delete(file.toPath());
+        // Files.delete(file.toPath());
         localFileSystem.delete(new Path(file), true);
       }
     }
@@ -153,13 +176,21 @@ public final class Merger<M extends WritableComparable> {
 
   final public class Segment implements Comparable<Segment>, Closeable {
 
-    private final DataOutputBuffer buf = new DataOutputBuffer();
-    private final DataInputStream in;
+    private DataOutputBuffer buf = new DataOutputBuffer();
+    private DataInputStream in;
     private int items;
     private int len = -1;
+    private SEGMENT_TYPE segmentType;
+
+    private List<Integer> indices;
+    private List<Integer> offsets;
+    private byte[] memBuf;
+    private int currentIndex;
 
     public Segment(String f) throws IOException {
-      //in = new DataInputStream(new BufferedInputStream(new FileInputStream(f)));
+      // in = new DataInputStream(new BufferedInputStream(new
+      // FileInputStream(f)));
+      segmentType = SEGMENT_TYPE.FILE;
       in = localFileSystem.open(new Path(f));
       // we read how many items are expected
       items = in.readInt();
@@ -167,6 +198,32 @@ public final class Merger<M extends WritableComparable> {
       len = WritableUtils.readVInt(in);
       // read the first record
       buf.write(in, len);
+
+    }
+
+    public Segment(byte[] in, List<Integer> indices, List<Integer> offsets,
+        int size) throws IOException {
+      segmentType = SEGMENT_TYPE.MEMORY;
+      this.memBuf = in;
+      // we read how many items are expected
+      this.items = size;
+      this.indices = indices;
+      this.offsets = offsets;
+      getCurrentBuffer();
+    }
+
+    private void getCurrentBuffer() {
+      int x = indices.get(currentIndex);
+      int off = offsets.get(x);
+      int follow = x + 1;
+      len = offsets.get(follow) - off;
+      // write the length in front of the record
+      try {
+        buf.write(memBuf, off, len);
+      } catch (IOException e) {
+        e.printStackTrace();
+      }
+      currentIndex++;
     }
 
     public byte[] getBytes() {
@@ -196,8 +253,12 @@ public final class Merger<M extends WritableComparable> {
     // sets the record one further in the file
     public void next() throws IOException {
       buf.reset();
-      len = WritableUtils.readVInt(in);
-      buf.write(in, len);
+      if (segmentType == SEGMENT_TYPE.FILE) {
+        len = WritableUtils.readVInt(in);
+        buf.write(in, len);
+      } else {
+        getCurrentBuffer();
+      }
       items--;
     }
 
@@ -209,7 +270,9 @@ public final class Merger<M extends WritableComparable> {
 
     @Override
     public void close() throws IOException {
-      in.close();
+      if (segmentType == SEGMENT_TYPE.FILE) {
+        in.close();
+      }
     }
 
   }
@@ -219,59 +282,67 @@ public final class Merger<M extends WritableComparable> {
    */
 
   public static <M extends WritableComparable<?>> void mergeIntermediate(
-      Class<M> msgClass, String outputFile, Configuration conf, String... files) throws IOException {
+      Class<M> msgClass, String outputFile, Configuration conf, String... files)
+      throws IOException {
     mergeIntermediate(msgClass, outputFile, Arrays.asList(files), conf);
   }
 
-  /*public static <M extends WritableComparable<?>> void mergeIntermediate(
-      Class<M> msgClass, File outputFile, File... files) throws IOException {
-    merge(msgClass, true, outputFile, Arrays.asList(files));
-  }*/
+  /*
+   * public static <M extends WritableComparable<?>> void mergeIntermediate(
+   * Class<M> msgClass, File outputFile, File... files) throws IOException {
+   * merge(msgClass, true, outputFile, Arrays.asList(files)); }
+   */
 
-  /*public static <M extends WritableComparable<?>> void mergeIntermediate(
-      Class<M> msgClass, File outputFile, List<File> list) throws IOException {
-    merge(msgClass, true, outputFile, list);
-  }*/
+  /*
+   * public static <M extends WritableComparable<?>> void mergeIntermediate(
+   * Class<M> msgClass, File outputFile, List<File> list) throws IOException {
+   * merge(msgClass, true, outputFile, list); }
+   */
 
   public static <M extends WritableComparable<?>> void mergeIntermediate(
-      Class<M> msgClass, String outputFile, List<String> list, Configuration conf)
-      throws IOException {
+      Class<M> msgClass, String outputFile, List<String> list,
+      Configuration conf) throws IOException {
     merge(msgClass, true, outputFile, list, conf);
   }
 
   public static <M extends WritableComparable<?>> void merge(Class<M> msgClass,
-      String outputFile, Configuration conf, String... files) throws IOException {
+      String outputFile, Configuration conf, String... files)
+      throws IOException {
     merge(msgClass, outputFile, Arrays.asList(files), conf);
   }
 
   public static <M extends WritableComparable<?>> void merge(Class<M> msgClass,
-      String outputFile, List<String> list, Configuration conf) throws IOException {
-    //List<File> files = toFiles(list);
+      String outputFile, List<String> list, Configuration conf)
+      throws IOException {
+    // List<File> files = toFiles(list);
     merge(msgClass, false, outputFile, list, conf);
   }
 
-  /*public static <M extends WritableComparable<?>> void merge(Class<M> msgClass,
-      File outputFile, File... files) throws IOException {
-    merge(msgClass, false, outputFile, Arrays.asList(files));
-  }*/
+  /*
+   * public static <M extends WritableComparable<?>> void merge(Class<M>
+   * msgClass, File outputFile, File... files) throws IOException {
+   * merge(msgClass, false, outputFile, Arrays.asList(files)); }
+   */
 
-  /*public static <M extends WritableComparable<?>> void merge(Class<M> msgClass,
-      File outputFile, List<File> list) throws IOException {
-    merge(msgClass, false, outputFile, list);
-  }*/
+  /*
+   * public static <M extends WritableComparable<?>> void merge(Class<M>
+   * msgClass, File outputFile, List<File> list) throws IOException {
+   * merge(msgClass, false, outputFile, list); }
+   */
 
   public static <M extends WritableComparable<?>> void merge(Class<M> msgClass,
-      boolean intermediateMerge, String outputFile, List<String> list, Configuration conf)
-      throws IOException {
-    new Merger<M>(msgClass, intermediateMerge, outputFile, list, conf).mergeFiles();
+      boolean intermediateMerge, String outputFile, List<String> list,
+      Configuration conf) throws IOException {
+    new Merger<M>(msgClass, intermediateMerge, outputFile, list, conf, null,
+        null, null, 0).mergeFiles();
   }
 
-  /*private static List<File> toFiles(List<String> list) {
-    List<File> fList = new ArrayList<>(list.size());
-    for (String s : list) {
-      fList.add(new File(s));
-    }
-    return fList;
-  }*/
+  public static <M extends WritableComparable<?>> void merge(Class<M> msgClass,
+      boolean intermediateMerge, String outputFile, List<String> list,
+      Configuration conf, List<Integer> indices, List<Integer> offsets,
+      DataOutputBuffer buf, int size) throws IOException {
+    new Merger<M>(msgClass, intermediateMerge, outputFile, list, conf, indices,
+        offsets, buf, size).mergeFiles();
+  }
 
 }

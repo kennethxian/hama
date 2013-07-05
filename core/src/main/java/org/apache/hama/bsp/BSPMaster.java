@@ -719,8 +719,6 @@ public class BSPMaster implements JobSubmissionProtocol, MasterProtocol,
   public void moveToBlackList(String host) {
     LOG.info("[moveToBlackList()]Host to be moved to black list: " + host);
     for (GroomServerStatus groomStatus : groomServerStatusKeySet()) {
-      LOG.info("[moveToBlackList()]GroomServerStatus's host name:"
-          + groomStatus.getGroomHostName() + " host:" + host);
       if (groomStatus.getGroomHostName().equals(host)) {
         // boolean result = groomServers.remove(groomStatus,
         // findGroomServer(groomStatus));

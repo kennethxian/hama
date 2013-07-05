@@ -17,6 +17,7 @@
  */
 package org.apache.hama.bsp.message.queue;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.Random;
@@ -29,6 +30,8 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.LocalFileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.WritableComparable;
+import org.apache.hadoop.util.DiskChecker;
+import org.apache.hadoop.util.DiskChecker.DiskErrorException;
 import org.apache.hadoop.util.ReflectionUtils;
 import org.apache.hama.Constants;
 import org.apache.hama.bsp.TaskAttemptID;
@@ -73,15 +76,25 @@ public class SortedDiskQueue<M extends WritableComparable<M>> extends
 
   // private Segment fileSegment;
 
-  public static String getRandomConfiguredDir(Configuration conf) {
+  public String getRandomConfiguredDir(Configuration conf) {
     String configuredQueueDir = conf.get(DISK_QUEUE_PATH_KEY);
     String[] realDir = null;
     if (configuredQueueDir != null) {
       realDir = configuredQueueDir.split(",");
       if ((realDir != null) && (realDir.length > 0)) {
-        int fileIndex = (int) Math.abs((new Random())
-            .nextInt(Integer.MAX_VALUE)) % realDir.length;
-        configuredQueueDir = realDir[fileIndex];
+        boolean found = false;
+        while (!found) {
+          int fileIndex = (int) Math.abs((new Random())
+              .nextInt(Integer.MAX_VALUE)) % realDir.length;
+          configuredQueueDir = realDir[fileIndex];
+          try {
+            DiskChecker.checkDir(new File(configuredQueueDir));
+            found = true;
+          } catch (DiskErrorException e) {
+            e.printStackTrace();
+            LOG.info("Dir error, looks for another: " + configuredQueueDir);
+          }
+        }
       }
     }
     return configuredQueueDir;
@@ -95,6 +108,8 @@ public class SortedDiskQueue<M extends WritableComparable<M>> extends
       int bufferSize = conf.getInt(DISK_QUEUE_BUFFER_SIZE_KEY, 1000000);
       LOG.info("SortedDiskQueue init, bufferSize is " + bufferSize);
 
+      localFileSystem = FileSystem.getLocal(conf);
+
       String queueDir = null;
       queueDir = getQueueDir(conf, id, getRandomConfiguredDir(conf));
       LOG.info("SortedDiskQueue init, queueDir is " + queueDir);
@@ -104,7 +119,6 @@ public class SortedDiskQueue<M extends WritableComparable<M>> extends
       mergedFileName = queueDir + "/" + "mergedmessagefile";
       sortedFile = new SortedFile<M>(queueDir, mergedFileName, bufferSize,
           msgClass, conf);
-      localFileSystem = FileSystem.getLocal(conf);
       // fs.mkdirs(queueDir);
       // queuePath = new Path(queueDir, (ONGOING_SEQUENCE_NUMBER++)
       // + "_messages.seq");

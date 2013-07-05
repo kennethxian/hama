@@ -72,6 +72,7 @@ public final class SortedFile<M extends WritableComparable> implements
 
   private int bufferSize;
   private LinkedBlockingQueue<SpillAndSortThread> threadQueue;
+  private SpillAndSortThread memorySort;
 
   /**
    * Creates a single sorted file. This means, there is no intermediate
@@ -233,33 +234,57 @@ public final class SortedFile<M extends WritableComparable> implements
   public void close() throws IOException {
     if (buf.getLength() > 0) {
       offsets.add(buf.getLength());
-      sortAndSpill();
+      if (conf.getBoolean("bsp.sorted.disk.spill.all.to.disk", true)) {
+        sortAndSpill();
+      } else {
+        memorySort = new SpillAndSortThread(offsets, indices, size, buf, null,
+            comp, threadQueue);
+        memorySort.sort();
+      }
     }
     waitSpillCompleted();
     mergeFiles();
   }
 
   void waitSpillCompleted() {
-    while (true) {
-      if (threadQueue.size() <= 0) {
-        break;
-      }
-
+    for (SpillAndSortThread thread : threadQueue) {
       try {
-        Thread.sleep(2000);
-      } catch (InterruptedException e) {
+        thread.join();
+      } catch (Throwable e) {
         e.printStackTrace();
       }
     }
+
+    // while (true) {
+    // if (threadQueue.size() <= 0) {
+    // break;
+    // }
+    //
+    // try {
+    // Thread.sleep(2000);
+    // } catch (InterruptedException e) {
+    // e.printStackTrace();
+    // }
+    // }
   }
 
   public void mergeFiles() throws IOException {
     if (mergeFiles) {
       try {
-        LOG.info("Starting" + (intermediateMerge ? " intermediate" : "")
-            + " merge of " + files.size() + " files.");
-        Merger.merge(msgClass, intermediateMerge, destinationFileName, files,
-            conf);
+        if (memorySort == null) {
+          LOG.info("Starting" + (intermediateMerge ? " intermediate" : "")
+              + " merge of " + files.size() + " files.");
+          Merger.merge(msgClass, intermediateMerge, destinationFileName, files,
+              conf);
+        } else {
+          LOG.info("Starting" + (intermediateMerge ? " intermediate" : "")
+              + " merge of " + files.size() + " files."
+              + " and one memory segment");
+          List<Integer> finalIndices = memorySort.getIndices();
+          List<Integer> finalOffsets = memorySort.getOffsets();
+          Merger.merge(msgClass, intermediateMerge, destinationFileName, files,
+              conf, finalIndices, finalOffsets, buf, size);
+        }
         LOG.info("Merge complete");
       } catch (IOException e) {
         throw e;
