@@ -72,15 +72,15 @@ public final class DiskQueue<M extends Writable> extends POJOMessageQueue<M> {
     this.id = id;
     writable.setConf(conf);
     try {
-      //fs = FileSystem.get(conf);
-      fs = FileSystem.getLocal(conf);;
-      LOG.info("DiskQueue init, filesystem is " + fs.getClass().getName());
+      // fs = FileSystem.get(conf);
+      fs = FileSystem.getLocal(conf);
       String configuredQueueDir = conf.get(DISK_QUEUE_PATH_KEY);
       Path queueDir = null;
       queueDir = getQueueDir(conf, id, configuredQueueDir);
       fs.mkdirs(queueDir);
       queuePath = new Path(queueDir, (ONGOING_SEQUENCE_NUMBER++)
           + "_messages.seq");
+      LOG.info("DiskQueue init, queuePath is " + queuePath);
       prepareWrite();
     } catch (IOException e) {
       // we can't recover if something bad happens here..
@@ -91,11 +91,11 @@ public final class DiskQueue<M extends Writable> extends POJOMessageQueue<M> {
   @Override
   public void close() {
     closeInternal(true);
-    try {
-      fs.delete(queuePath.getParent(), true);
-    } catch (IOException e) {
-      LOG.error(e);
-    }
+    // try {
+    // fs.delete(queuePath.getParent(), true);
+    // } catch (IOException e) {
+    // LOG.error(e);
+    // }
   }
 
   /**

@@ -150,6 +150,17 @@ public class TestCheckpoint extends TestCase {
       this.listener = listener;
     }
 
+    @Override
+    public void directSetReceiveQueue(MessageQueue<Text> queue) {
+      // TODO Auto-generated method stub
+    }
+
+    @Override
+    public MessageQueue<Text> getCurrentReceiveQueue() {
+      // TODO Auto-generated method stub
+      return null;
+    }
+
   }
 
   public static class TestBSPPeer implements
@@ -297,6 +308,17 @@ public class TestCheckpoint extends TestCase {
 
     @Override
     public TaskAttemptID getTaskId() {
+      return null;
+    }
+
+    @Override
+    public void directSetReceiveQueue(MessageQueue<Text> queue) {
+      // TODO Auto-generated method stub
+    }
+
+    @Override
+    public MessageQueue<Text> getCurrentReceiveQueue() {
+      // TODO Auto-generated method stub
       return null;
     }
 
