@@ -258,10 +258,7 @@ public final class GraphJobRunner<V extends WritableComparable, E extends Writab
           currentMessage = iterable.getOverflowMessage();
         }
         aggregationRunner.aggregateVertex(lastValue, vertex);
-        // check for halt again after computation
-        if (!vertex.isHalted()) {
-          activeVertices++;
-        }
+        activeVertices++;
       }
 
       // note that we even need to rewrite the vertex if it is halted for
