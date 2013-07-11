@@ -121,6 +121,66 @@
     </pluginRepository>
   </pluginRepositories>
 
+  <profiles>
+    <profile>
+      <id>hadoop1</id>
+      <dependencies>
+        <!-- build for Hadoop 1.x -->
+        <dependency>
+          <groupId>org.apache.hadoop</groupId>
+          <artifactId>hadoop-core</artifactId>
+          <version>${hadoop.version}</version>
+        </dependency>
+        <dependency>
+          <groupId>org.apache.hadoop</groupId>
+          <artifactId>hadoop-test</artifactId>
+          <version>${hadoop.version}</version>
+        </dependency>
+      </dependencies>
+    </profile>
+    <profile>
+      <id>hadoop2</id>
+      <modules>
+        <module>yarn</module>
+      </modules>
+
+      <dependencies>
+        <!-- build for Hadoop 2.x -->
+        <dependency>
+          <groupId>org.apache.hadoop</groupId>
+          <artifactId>hadoop-common</artifactId>
+          <version>${hadoop.version}</version>
+        </dependency>
+        <dependency>
+          <groupId>org.apache.hadoop</groupId>
+          <artifactId>hadoop-hdfs</artifactId>
+          <version>${hadoop.version}</version>
+        </dependency>
+        <dependency>
+          <groupId>org.apache.hadoop</groupId>
+          <artifactId>hadoop-hdfs</artifactId>
+          <classifier>tests</classifier>
+          <version>${hadoop.version}</version>
+        </dependency>
+        <dependency>
+          <groupId>org.apache.hadoop</groupId>
+          <artifactId>hadoop-mapreduce-client-core</artifactId>
+          <version>${hadoop.version}</version>
+        </dependency>
+        <dependency>
+          <groupId>org.apache.hadoop</groupId>
+          <artifactId>hadoop-auth</artifactId>
+          <version>${hadoop.version}</version>
+        </dependency>
+        <dependency>
+          <groupId>com.google.protobuf</groupId>
+          <artifactId>protobuf-java</artifactId>
+          <version>2.4.0a</version>
+        </dependency>
+    </dependencies>
+    </profile>
+  </profiles>
+
   <dependencyManagement>
     <dependencies>
       <dependency>
@@ -199,16 +259,6 @@
         <version>${ant.version}</version>
       </dependency>
       <dependency>
-        <groupId>org.apache.hadoop</groupId>
-        <artifactId>hadoop-core</artifactId>
-        <version>${hadoop.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>org.apache.hadoop</groupId>
-        <artifactId>hadoop-test</artifactId>
-        <version>${hadoop.version}</version>
-      </dependency>
-      <dependency>
         <groupId>junit</groupId>
         <artifactId>junit</artifactId>
         <version>${junit.version}</version>
@@ -251,7 +301,6 @@
     <module>core</module>
     <module>graph</module>
     <module>examples</module>
-    <module>yarn</module>
     <module>ml</module>
     <module>dist</module>
   </modules>
@@ -323,9 +372,11 @@
           <excludes>
             <exclude>.idea/**</exclude>
             <exclude>.git/**</exclude>
-            <exclude>.classpath/**</exclude>
-            <exclude>.project</exclude>
+            <exclude>**/.classpath/**</exclude>
+            <exclude>**/.project</exclude>
+            <exclude>**/.settings/**</exclude>
             <exclude>**/*.asc</exclude>
+            <exclude>**/dependency-reduced-pom.xml</exclude>
             <exclude>**/logs/**</exclude>
             <exclude>**/docs/**</exclude>
             <exclude>CHANGES.txt</exclude>
@@ -335,6 +386,7 @@
             <exclude>**dependency-reduced-pom.xml</exclude>
             <exclude>**/src/test/resources/*.txt</exclude>
             <exclude>c++/**</exclude>
+            <exclude>**/target/**</exclude>
           </excludes>
         </configuration>
       </plugin>
