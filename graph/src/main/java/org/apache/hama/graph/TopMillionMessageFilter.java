@@ -18,6 +18,7 @@
 
 package org.apache.hama.graph;
 
+import java.lang.reflect.Field;
 import java.util.HashMap;
 
 import org.apache.commons.logging.Log;
@@ -29,13 +30,15 @@ import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.io.WritableComparable;
 import org.apache.hama.bsp.message.queue.MessageFilter;
 
-public class TopMillionMessageFilter<M extends WritableComparable<M>> implements MessageFilter<M> , Configurable {
-  protected static final Log LOG = LogFactory.getLog(TopMillionMessageFilter.class);
+public class TopMillionMessageFilter<M extends WritableComparable<M>>
+    implements MessageFilter<M>, Configurable {
+  protected static final Log LOG = LogFactory
+      .getLog(TopMillionMessageFilter.class);
   HashMap<String, VertexMessage<M>> filterMap = new HashMap<String, VertexMessage<M>>();
   Configuration conf;
-  
+
   protected SogouBackLinkItem<M> parseMessage(M message) {
-    GraphJobMessage convertedMessage = (GraphJobMessage)message;
+    GraphJobMessage convertedMessage = (GraphJobMessage) message;
     if (!convertedMessage.isVertexMessage()) {
       return null;
     }
@@ -43,16 +46,72 @@ public class TopMillionMessageFilter<M extends WritableComparable<M>> implements
     SogouBackLinkItem<M> item = null;
 
     if (writableMsg instanceof Text) {
-      Text text = (Text)writableMsg;
+      Text text = (Text) writableMsg;
       String line = text.toString();
       if (line.startsWith("bl:")) {
         item = new SogouBackLinkItem<M>(message);
         item.formatFromString(line.substring(3));
       }
+    } else if (writableMsg.getClass().getName()
+        .equals("com.sogou.web.hama.siterank.VertexInfo")) {
+      Field flagField = null;
+      try {
+        flagField = writableMsg.getClass().getField("flag");
+      } catch (SecurityException e1) {
+        e1.printStackTrace();
+      } catch (NoSuchFieldException e1) {
+        e1.printStackTrace();
+      }
+      int flag = -1;
+      try {
+        flag = flagField.getInt(writableMsg);
+      } catch (IllegalArgumentException e1) {
+        e1.printStackTrace();
+      } catch (IllegalAccessException e1) {
+        e1.printStackTrace();
+      }
+      if (flag != 0) {
+        return null;
+      }
+
+      Field backlinkField = null;
+      try {
+        backlinkField = writableMsg.getClass().getField("backlinkItem");
+      } catch (SecurityException e1) {
+        e1.printStackTrace();
+      } catch (NoSuchFieldException e1) {
+        e1.printStackTrace();
+      }
+
+      if (backlinkField == null) {
+        return null;
+      }
+
+      item = new SogouBackLinkItem<M>(message);
+      try {
+        Object backlinkObj = backlinkField.get(writableMsg);
+        Field[] subFields = backlinkObj.getClass().getDeclaredFields();
+        for (Field subField : subFields) {
+          String subFieldName = subField.getName();
+          if (subFieldName.equals("siteId")) {
+            item.siteId = (String) subField.get(backlinkObj);
+          } else if (subFieldName.equals("weight")) {
+            item.weight = subField.getDouble(backlinkObj);
+          } else if (subFieldName.equals("normalizedWeight")) {
+            item.normalizedWeight = subField.getDouble(backlinkObj);
+          } else if (subFieldName.equals("spreadSiteRank")) {
+            item.spreadSiteRank = subField.getDouble(backlinkObj);
+          }
+        }
+      } catch (IllegalArgumentException e) {
+        e.printStackTrace();
+      } catch (IllegalAccessException e) {
+        e.printStackTrace();
+      }
     }
     return item;
   }
-  
+
   protected VertexMessage<M> findMessageMap(SogouBackLinkItem<M> item) {
     if (filterMap.containsKey(item.siteId)) {
       VertexMessage<M> vertexMsg = filterMap.get(item.siteId);
@@ -63,7 +122,7 @@ public class TopMillionMessageFilter<M extends WritableComparable<M>> implements
       return vertexMsg;
     }
   }
-        
+
   @Override
   public void clearMessage() {
     for (VertexMessage<M> vertexMsg : filterMap.values()) {

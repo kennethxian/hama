@@ -39,6 +39,7 @@ public final class LimitedSortedMessageQueue<M extends WritableComparable<M>>
   private final HamaPriorityQueue<M> queue = new HamaPriorityQueue<M>();
   private Configuration conf;
   private MessageFilter<M> messageFilter;
+  String filterName;
   
   @Override
   public Iterator<M> iterator() {
@@ -48,6 +49,7 @@ public final class LimitedSortedMessageQueue<M extends WritableComparable<M>>
   @Override
   public void setConf(Configuration conf) {
     this.conf = conf;
+    filterName = conf.get(Constants.MESSAGE_FILTER_CLASS);
   }
 
   @Override
@@ -72,7 +74,6 @@ public final class LimitedSortedMessageQueue<M extends WritableComparable<M>>
   @SuppressWarnings("unchecked")
   @Override
   public void add(M item) {
-    String filterName = conf.get(Constants.MESSAGE_FILTER_CLASS);
     if (filterName != null) {
       if (messageFilter == null) {
       try {
@@ -123,7 +124,8 @@ public final class LimitedSortedMessageQueue<M extends WritableComparable<M>>
 
   @Override
   public void init(Configuration conf, TaskAttemptID id) {
-
+    this.conf = conf;
+    filterName = conf.get(Constants.MESSAGE_FILTER_CLASS);
   }
 
   @Override

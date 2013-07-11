@@ -415,10 +415,6 @@ public final class BSPPeerImpl<K1, V1, K2, V2, M extends Writable> implements
       if (msgQueue != null) {
         msgQueue.close();
       }
-      MessageQueue<M> msgQueue = (MessageQueue<M>) messages;
-      if (msgQueue != null) {
-        msgQueue.close();
-      }
     }
 
     if (this.faultToleranceService != null) {
