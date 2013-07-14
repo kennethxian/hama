@@ -281,6 +281,20 @@ public class BSPMaster implements JobSubmissionProtocol, MasterProtocol,
 
     void handleTimeoutGroomServer(GroomServerStatus status) {
       moveToBlackList(status.getGroomHostName());
+      for (TaskStatus taskStatus : status.getTaskReports()) {
+        if (taskStatus.getRunState() != TaskStatus.State.SUCCEEDED) {
+          JobInProgress jip = taskScheduler.findJobById(taskStatus.getJobId());
+          TaskInProgress tip = jip.findTaskInProgress(taskStatus.getTaskId()
+              .getTaskID());
+
+          if (jip.handleFailure(tip)) {
+            recoverTask(jip);
+          } else {
+            jip.status.setRunState(JobStatus.FAILED);
+            jip.failedTask(tip, taskStatus);
+          }
+        }
+      }
     }
 
     @Override

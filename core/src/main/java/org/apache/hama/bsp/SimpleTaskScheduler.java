@@ -191,7 +191,8 @@ class SimpleTaskScheduler extends TaskScheduler {
         jobResult = Boolean.FALSE;
         LOG.error("Error submitting job", e);
       }
-      if (Boolean.FALSE.equals(jobResult)) {
+      if ((Boolean.FALSE.equals(jobResult))
+          && (job.getStatus().getRunState() != JobStatus.RECOVERING)) {
         LOG.error(new StringBuffer(512).append("Scheduling of job ")
             .append(job.getJobName())
             .append(" could not be done successfully. Killing it!").toString());
