@@ -48,6 +48,7 @@ import org.apache.hama.bsp.sync.SyncException;
 import org.apache.hama.bsp.sync.SyncServiceFactory;
 import org.apache.hama.ipc.BSPPeerProtocol;
 import org.apache.hama.pipes.util.DistributedCacheUtil;
+import org.apache.hama.util.BSPNetUtils;
 import org.apache.hama.util.KeyValuePair;
 
 /**
@@ -167,6 +168,22 @@ public final class BSPPeerImpl<K1, V1, K2, V2, M extends Writable> implements
     peerAddress = new InetSocketAddress(bindAddress, bindPort);
 
     initializeIO();
+
+    boolean messagingStarted = false;
+    while ((!messagingStarted) && (bindPort < BSPNetUtils.MAX_PORT_NUMBER)) {
+      try {
+        initilizeMessaging();
+        if (LOG.isDebugEnabled()) {
+          LOG.debug("Initialized Messaging service.");
+        }
+        messagingStarted = true;
+      } catch (Exception e) {
+        bindPort += 500;
+        peerAddress = new InetSocketAddress(bindAddress, bindPort);
+        conf.setInt(Constants.PEER_PORT, bindPort);
+      }
+    }
+
     initializeSyncService(superstep, state);
 
     TaskStatus.Phase phase = TaskStatus.Phase.STARTING;
@@ -179,10 +196,10 @@ public final class BSPPeerImpl<K1, V1, K2, V2, M extends Writable> implements
     setCurrentTaskStatus(new TaskStatus(taskId.getJobID(), taskId, 1.0f, state,
         stateString, peerAddress.getHostName(), phase, counters));
 
-    initilizeMessaging();
-    if (LOG.isDebugEnabled()) {
-      LOG.debug("Initialized Messaging service.");
-    }
+    // initilizeMessaging();
+    // if (LOG.isDebugEnabled()) {
+    // LOG.debug("Initialized Messaging service.");
+    // }
 
     final String combinerName = conf.get(Constants.COMBINER_CLASS);
     if (combinerName != null) {
