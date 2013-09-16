@@ -19,8 +19,8 @@
  */
 package org.apache.hama.examples;
 
-import org.apache.hadoop.util.ProgramDriver;
 import org.apache.hama.examples.util.Generator;
+import org.apache.hama.util.ProgramDriver;
 
 public class ExampleDriver {
 
@@ -36,6 +36,7 @@ public class ExampleDriver {
       pgd.addClass("pagerank", PageRank.class, "PageRank");
       pgd.addClass("inlnkcount", InlinkCount.class, "InlinkCount");
       pgd.addClass("bipartite", BipartiteMatching.class, "Bipartite Matching");
+      pgd.addClass("semi", SemiClusterJobDriver.class, "Semi Clustering");
       pgd.addClass("kmeans", Kmeans.class, "K-Means Clustering");
       pgd.addClass("gd", GradientDescentExample.class, "Gradient Descent");
 

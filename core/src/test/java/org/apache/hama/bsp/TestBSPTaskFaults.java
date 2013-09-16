@@ -45,8 +45,8 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.io.NullWritable;
-import org.apache.hadoop.ipc.RPC;
-import org.apache.hadoop.ipc.Server;
+import org.apache.hama.ipc.RPC;
+import org.apache.hama.ipc.Server;
 import org.apache.hama.Constants;
 import org.apache.hama.HamaConfiguration;
 import org.apache.hama.HamaTestCase;
@@ -146,11 +146,6 @@ public class TestBSPTaskFaults extends TestCase {
     public boolean statusUpdate(TaskAttemptID taskId, TaskStatus taskStatus)
         throws IOException, InterruptedException {
       return true;
-    }
-
-    @Override
-    public int getAssignedPortNum(TaskAttemptID taskid) {
-      return 0;
     }
 
     public synchronized int getPingCount() {

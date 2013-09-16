@@ -4,8 +4,18 @@ Release 0.6.3 (unreleased changes)
 
   NEW FEATURES
 
-  BUG FIXES
+   HAMA-795: Implement Autoencoder based on NeuralNetwork (Yexi Jiang)
+   HAMA-767: Add vertex addition/removal APIs (Anastasis Andronidis via edwardyoon)
+   HAMA-594: Semi-Clustering Algorithm Implementation (Renil Jeseph via edwardyoon)
+   HAMA-801: Snappy fails on Mac OS with JDK 1.7 (Anastasis Andronidis via tommaso)
 
+  BUG FIXES
+  
+   HAMA-789: BspPeer launched fail because port is bound by others (Suraj Menon via edwardyoon)
+   HAMA-791: Fix the problem that MultilayerPerceptron fails to learn a good hypothesis sometimes. (Yexi Jiang)
+   HAMA-782: The arguments of DoubleVector.slice(int, int) method will mislead the user. (Yexi Jiang)
+   HAMA-780: New launched child processes by fault tolerance may not be able to contact each other (kennethxian)
+   HAMA-772: When selected KeyValueTextInputFormat, workers get only one value for key (Ikhtiyor Ahmedov via edwardyoon)
    HAMA-776: localQueue is set as Send queue in init function of AbstractMessageManager (kennethxian)
    HAMA-769: Intermediate queue's close method is not called, clean work may be omitted (kennethxian)
    HAMA-771: Determining the count of active vertices (edwardyoon)
@@ -13,9 +23,16 @@ Release 0.6.3 (unreleased changes)
 
   IMPROVEMENTS
 
+   HAMA-749: Build for C++ Pipes (Martin Illecker)
+   HAMA-796: Add Vector multiply Matrix for DoubleVector as well as DenseDoubleVector. (Yexi Jiang)
+   HAMA-770: Use a unified model to represent linear regression, logistic regression, MLP, autoencoder, and deepNets (Yexi Jiang)
    HAMA-671: Clean up Maven build scripts (edwardyoon)
    HAMA-765: Add apply method to Vector/Matrix (Yexi Jiang)
    HAMA-773: Matrix/Vector operation does not validate the input argument (Yexi Jiang)
+   
+  TASKS
+
+   HAMA-792: Add testing datasets for ML package (Yexi Jiang)
 
 Release 0.6.2 - June 26, 2013
 

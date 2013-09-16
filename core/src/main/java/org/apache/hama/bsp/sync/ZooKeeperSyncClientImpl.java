@@ -291,7 +291,6 @@ public class ZooKeeperSyncClientImpl extends ZKSyncClient implements
             taskAttemptSortedMap.put(thatTask, s);
           }
         }
-
         for (Map.Entry<TaskAttemptID, String> entry : taskAttemptSortedMap
             .entrySet()) {
           TaskAttemptID thatTask = entry.getKey();

@@ -151,6 +151,12 @@ public class TestCheckpoint extends TestCase {
     }
 
     @Override
+    public InetSocketAddress getListenerAddress() {
+      // TODO Auto-generated method stub
+      return null;
+    }
+
+    @Override
     public void directSetReceiveQueue(MessageQueue<Text> queue) {
       // TODO Auto-generated method stub
     }

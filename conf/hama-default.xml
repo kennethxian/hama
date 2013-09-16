@@ -157,6 +157,19 @@
     but it trades more memory.
     </description>
   </property>
+  <property>
+    <name>bsp.input.runtime.partitioning</name>
+    <value>true</value>
+    <description>Basically, we provides a data partitioning program based on BSP job, 
+    which you can use without any extra program. Set this property to false if you 
+    want to use the custom partition program.
+    </description>
+  </property>
+  <property>
+    <name>io.serializations</name>
+    <value>org.apache.hadoop.io.serializer.WritableSerialization,org.apache.hadoop.io.serializer.JavaSerialization</value>
+    <description>The default IO serialization protocol for HDFS I/O</description>
+  </property>
   
   <!--
   Beginning of properties that are directly mapped from ZooKeeper's zoo.cfg.

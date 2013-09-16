@@ -20,9 +20,7 @@ package org.apache.hama.ml.math;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.ExpectedException;
 
 /**
  * Testcase for {@link DenseDoubleVector}
@@ -154,5 +152,57 @@ public class TestDenseDoubleVector {
     DoubleVector vec1 = new DenseDoubleVector(arr1);
     DoubleVector vec2 = new DenseDoubleVector(arr2);
     vec1.add(vec2);
+  }
+  
+  @Test
+  public void testSliceNormal() {
+    double[] arr1 = new double[] {2, 3, 4, 5, 6};
+    double[] arr2 = new double[] {4, 5, 6};
+    double[] arr3 = new double[] {2, 3, 4};
+    DoubleVector vec1 = new DenseDoubleVector(arr1);
+    assertArrayEquals(arr2, vec1.slice(2, 4).toArray(), 0.000001);
+    DoubleVector vec2 = new DenseDoubleVector(arr1);
+    assertArrayEquals(arr3, vec2.slice(3).toArray(), 0.000001);
+  }
+  
+  @Test(expected = IllegalArgumentException.class)
+  public void testSliceAbnormal() {
+    double[] arr1 = new double[] {2, 3, 4, 5, 6};
+    DoubleVector vec = new DenseDoubleVector(arr1);
+    vec.slice(2, 5);
+  }
+  
+  @Test(expected = IllegalArgumentException.class)
+  public void testSliceAbnormalEndTooLarge() {
+    double[] arr1 = new double[] {2, 3, 4, 5, 6};
+    DoubleVector vec = new DenseDoubleVector(arr1);
+    vec.slice(2, 5);
+  }
+  
+  @Test(expected = IllegalArgumentException.class)
+  public void testSliceAbnormalStartLargerThanEnd() {
+    double[] arr1 = new double[] {2, 3, 4, 5, 6};
+    DoubleVector vec = new DenseDoubleVector(arr1);
+    vec.slice(4, 3);
+  }
+  
+  @Test
+  public void testVectorMultiplyMatrix() {
+    DoubleVector vec = new DenseDoubleVector(new double[]{1, 2, 3});
+    DoubleMatrix mat = new DenseDoubleMatrix(new double[][] {
+        {1, 2, 3, 4}, {5, 6, 7, 8}, {9, 10, 11, 12}
+    });
+    double[] expectedRes = new double[] {38, 44, 50, 56};
+    
+    assertArrayEquals(expectedRes, vec.multiply(mat).toArray(), 0.000001);
+  }
+  
+  @Test(expected = IllegalArgumentException.class)
+  public void testVectorMultiplyMatrixAbnormal() {
+    DoubleVector vec = new DenseDoubleVector(new double[]{1, 2, 3});
+    DoubleMatrix mat = new DenseDoubleMatrix(new double[][] {
+        {1, 2, 3, 4}, {5, 6, 7, 8}, {9, 10, 11, 12}, {13, 14, 15, 16}
+    });
+    vec.multiply(mat);
   }
 }

@@ -245,6 +245,22 @@ public final class DenseDoubleVector implements DoubleVector {
     return v;
   }
 
+  @Override
+  public DoubleVector multiply(DoubleMatrix matrix) {
+    Preconditions.checkArgument(this.vector.length == matrix.getRowCount(),
+        "Dimension mismatch when multiply a vector to a matrix.");
+    return this.multiplyUnsafe(matrix);
+  }
+
+  @Override
+  public DoubleVector multiplyUnsafe(DoubleMatrix matrix) {
+    DoubleVector vec = new DenseDoubleVector(matrix.getColumnCount());
+    for (int i = 0; i < vec.getDimension(); ++i) {
+      vec.set(i, this.multiplyUnsafe(matrix.getColumnVector(i)).sum());
+    }
+    return vec;
+  }
+
   /*
    * (non-Javadoc)
    * @see de.jungblut.math.DoubleVector#divide(double)
@@ -354,7 +370,12 @@ public final class DenseDoubleVector implements DoubleVector {
    */
   @Override
   public DoubleVector slice(int length) {
-    return slice(0, length);
+    return slice(0, length - 1);
+  }
+
+  @Override
+  public DoubleVector sliceUnsafe(int length) {
+    return sliceUnsafe(0, length - 1);
   }
 
   /*
@@ -362,14 +383,24 @@ public final class DenseDoubleVector implements DoubleVector {
    * @see de.jungblut.math.DoubleVector#slice(int, int)
    */
   @Override
-  public DoubleVector slice(int offset, int length) {
-    DoubleVector nv = new DenseDoubleVector(length - offset);
-    int index = 0;
-    for (int i = offset; i < length; i++) {
-      nv.set(index++, vector[i]);
+  public DoubleVector slice(int start, int end) {
+    Preconditions.checkArgument(start >= 0 && start <= end
+        && end < vector.length, "The given from and to is invalid");
+
+    return sliceUnsafe(start, end);
+  }
+
+  /**
+   * {@inheritDoc}
+   */
+  @Override
+  public DoubleVector sliceUnsafe(int start, int end) {
+    DoubleVector newVec = new DenseDoubleVector(end - start + 1);
+    for (int i = start, j = 0; i <= end; ++i, ++j) {
+      newVec.set(j, vector[i]);
     }
 
-    return nv;
+    return newVec;
   }
 
   /*
