@@ -283,9 +283,6 @@ public class BSPMaster implements JobSubmissionProtocol, MasterProtocol,
       moveToBlackList(status.getGroomHostName());
       for (TaskStatus taskStatus : status.getTaskReports()) {
         if (taskStatus.getRunState() != TaskStatus.State.SUCCEEDED) {
-          if (taskStatus.getRunState() == TaskStatus.State.RUNNING) {
-            totalTasks--;
-          }
           JobInProgress jip = taskScheduler.findJobById(taskStatus.getJobId());
           TaskInProgress tip = jip.findTaskInProgress(taskStatus.getTaskId()
               .getTaskID());
