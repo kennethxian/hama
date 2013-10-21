@@ -15,7 +15,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-/** MODIFIED FOR GPGPU Usage! **/
 
 package org.apache.hama.pipes;
 
@@ -119,6 +118,9 @@ public class PipesApplication<K1 extends Writable, V1 extends Writable, K2 exten
         executable = DistributedCache.getLocalCacheFiles(conf)[0].toString();
 
         LOG.debug("DEBUG: executable: " + executable);
+      } else {
+        LOG.debug("DEBUG: DistributedCache.getLocalCacheFiles(conf) returns null.");
+        throw new IOException("Executable is missing!");
       }
     } catch (Exception e) {
       LOG.error("Executable: " + executable + " fs.default.name: "
@@ -209,9 +211,6 @@ public class PipesApplication<K1 extends Writable, V1 extends Writable, K2 exten
 
     LOG.debug("DEBUG: cmd: " + cmd);
     process = runClient(cmd, env); // fork c++ binary
-
-    LOG.debug("DEBUG: waiting for Client at "
-        + serverSocket.getLocalSocketAddress());
 
     try {
       if (!streamingEnabled) {
